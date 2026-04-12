@@ -4,6 +4,7 @@ import { Sprites } from '../../sprites.js';
 import { Flame } from './details.js';
 import { UNIT_TYPES } from '../../utils.js';
 import { BigExplosion } from '../explosions.js';
+import { tickGarrisonHeal } from '../garrison.js';
 
 
 class Building extends Entity {
@@ -100,6 +101,12 @@ class Building extends Entity {
     process() {
         if (this.tasks.length) this.processTasks();
         this.processInteraction();
+        // AoE2-style garrison heal. Free for buildings that never host
+        // units because `garrisonedUnits` is only populated on Town
+        // Centers and Towers.
+        if (this.garrisonedUnits && this.garrisonedUnits.length) {
+            tickGarrisonHeal(this);
+        }
     }
     processTasks() {
         let task = this.tasks[0];

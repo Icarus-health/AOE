@@ -68,6 +68,19 @@ class Engine {
                     }
                 }
             }
+            // Vikings get Wheelbarrow + Hand Cart for free as an AoE2
+            // civ bonus. We apply them as finalised techs so their
+            // attributeBonus side-effects kick in immediately.
+            if (player._civFreeCarts) {
+                for (const TechName of ['Wheelbarrow', 'HandCart']) {
+                    const Tech = Technologies[TechName];
+                    if (Tech && !player.possessions[TechName]) {
+                        const tech = new Tech(this.viewer);
+                        tech.init();
+                        tech.finalize();
+                    }
+                }
+            }
         }
 
         this.selectedEntity = null;

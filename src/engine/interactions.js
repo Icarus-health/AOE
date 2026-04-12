@@ -11,6 +11,20 @@ class Interaction {
         this.passive = passive;
         this.engine = engine;
     }
+    /**
+     * Effective tick rate for this interaction. Combines the legacy
+     * additive bonus bucket (`player.interactionBonus[name]`, used by
+     * the tech tree's integer subtractions) with the newer multiplicative
+     * bucket (`player.interactionMultiplier[name]`, used by civ bonuses
+     * that want a fractional speedup). Either bucket may be missing.
+     */
+    effectiveRate() {
+        const name = this.constructor.name;
+        const flat = (this.active.player.interactionBonus && this.active.player.interactionBonus[name]) || 0;
+        const mult = (this.active.player.interactionMultiplier && this.active.player.interactionMultiplier[name]);
+        const rate = this.RATE - flat;
+        return typeof mult === 'number' ? rate * mult : rate;
+    }
     preInit() {}
     init() {
         if (this.passive.destroyed) this.interactWithSuccessor();
@@ -64,7 +78,7 @@ class ResourceExtractionInteraction extends Interaction {
             }
         } else if (this.active.attributes[this.RESOURCE_NAME] >= max_capacity) {
             this.returnResources(this.engine);
-        } else if (this.active.ticks_waited >= this.RATE - this.active.player.interactionBonus[this.constructor.name]) {
+        } else if (this.active.ticks_waited >= this.effectiveRate()) {
             this.active.attributes[this.RESOURCE_NAME] += this.passive.getResource(this.engine);
             this.active.carriedResource = this.RESOURCE_TYPE;
             this.active.ticks_waited = 0;
@@ -133,7 +147,7 @@ class BuilderInteraction extends Interaction {
             if (this.engine.findInteractionSuccessor(this.active, this.passive) == null) {
                 this.terminate();
             }
-        } else if (this.active.ticks_waited >= this.RATE - this.active.player.interactionBonus[this.constructor.name]) {
+        } else if (this.active.ticks_waited >= this.effectiveRate()) {
             this.passive.constructionTick();
             this.active.ticks_waited = 0;
         }
@@ -160,7 +174,7 @@ class RepairInteraction extends Interaction {
             if (this.engine.findInteractionSuccessor(this.active, this.passive) == null) {
                 this.terminate();
             }
-        } else if (this.active.ticks_waited >= this.RATE - this.active.player.interactionBonus[this.constructor.name]) {
+        } else if (this.active.ticks_waited >= this.effectiveRate()) {
             this.passive.repairTick();
             this.active.ticks_waited = 0;
         }

@@ -24,6 +24,12 @@ const MAX_GARRISON = 10;
 const ATTACK_BONUS_PER_UNIT = 2;
 const ATTACK_BONUS_CAP = 12;
 
+// AoE2-style garrison heal: garrisoned units regenerate HP while inside
+// a Town Center / Tower. We heal a fraction per engine tick so the rate
+// is independent of FPS. 0.4 HP/tick at 35 FPS ≈ 14 HP/sec, which is
+// close to AoE2:DE behaviour without making towers invincible safehouses.
+const HEAL_PER_TICK = 0.4;
+
 /** True if a building can host garrisoned units. */
 export function canGarrison(building) {
     if (!building) return false;
@@ -134,8 +140,30 @@ function findFreeAdjacent(engine, building, width) {
     return null;
 }
 
+/**
+ * Heal every garrisoned unit inside a building by a fractional amount.
+ * Called from `Building.process` on every engine tick. Pure function, no
+ * RNG, safe for lockstep multiplayer.
+ */
+export function tickGarrisonHeal(building) {
+    if (!building || !building.garrisonedUnits || building.garrisonedUnits.length === 0) return;
+    for (const unit of building.garrisonedUnits) {
+        if (!unit || unit.destroyed) continue;
+        if (unit.hp >= unit.max_hp) continue;
+        // Accumulate fractional HP in a hidden field so we can heal less
+        // than 1 HP per tick without getting stuck rounding down.
+        unit._healBuffer = (unit._healBuffer || 0) + HEAL_PER_TICK;
+        if (unit._healBuffer >= 1) {
+            const gain = Math.floor(unit._healBuffer);
+            unit._healBuffer -= gain;
+            unit.hp = Math.min(unit.max_hp, unit.hp + gain);
+        }
+    }
+}
+
 export const GARRISON_LIMITS = {
     MAX_GARRISON,
     ATTACK_BONUS_PER_UNIT,
     ATTACK_BONUS_CAP,
+    HEAL_PER_TICK,
 };

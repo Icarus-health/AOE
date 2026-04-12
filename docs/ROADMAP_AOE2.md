@@ -30,33 +30,40 @@ zwischendurch wäre.
 
 ---
 
-## Phase 1 — Foundation Re-Theme (in Arbeit)
+## Phase 1 — Foundation Re-Theme ✅ abgeschlossen
 
 Ziel: Das Spiel fühlt sich beim ersten Klick im Hauptmenü schon nach
 Mittelalter an, ohne dass eine einzige Sprite-Datei ausgetauscht wurde.
 
 - [x] Roadmap dokumentiert (`docs/ROADMAP_AOE2.md`)
-- [ ] Civilization-Set auf 8 AoE2-Civs erweitert (Britons, Franks,
+- [x] Civilization-Set auf 8 AoE2-Civs erweitert (Britons, Franks,
       Byzantines, Goths, Saracens, Vikings, Teutons, Mongols) mit
       Bonus-Tabellen
-- [ ] AoE2 QoL-Mechaniken (Auto-Reseed Farm, Loom, Wheelbarrow,
+- [x] AoE2 QoL-Mechaniken (Auto-Reseed Farm, Loom, Wheelbarrow,
       Hand Cart) als Tech-Tree-Einträge im Town Center
-- [ ] Renderer-Abstraktion `src/graphics/renderer.js` mit `CanvasRenderer`
+- [x] Renderer-Abstraktion `src/graphics/renderer.js` mit `CanvasRenderer`
       als Default und `PixiRenderer` als experimentelle Option
-- [ ] Mobile Action Wheel `src/ui/action_wheel.js` (Long-Press öffnet
+- [x] Mobile Action Wheel `src/ui/action_wheel.js` (Long-Press öffnet
       Radial Menu) — als Modul, integriert hinter Feature-Flag
-- [ ] Phase 1 Determinism Test: Civ-Bonuses & Auto-Reseed reproduzierbar
+- [x] Phase 1 Determinism Test: Civ-Bonuses & Auto-Reseed reproduzierbar
 
-## Phase 2 — Eco & QoL Parity
+## Phase 2 — Eco & QoL Parity (in Arbeit)
 
 Ziel: Eco-Loop fühlt sich an wie AoE2.
 
+- [x] **Multiplier-Bucket** `player.interactionMultiplier` — Civs und
+      neue Techs bekommen endlich echte fraktionale Boni statt Float-
+      Subtraktionen gegen Integer-Ticks (Bug aus Phase 1 gefixt)
+- [x] Vikings bekommen Wheelbarrow + Hand Cart beim Spielstart
+      automatisch (`_civFreeCarts` → Auto-Research in Engine-Init)
+- [x] Garrison Heal in Town Center / Tower (0.4 HP/tick ≈ 14 HP/s)
+- [x] Eco-Techs: Double-Bit Axe (Tool), Bow Saw (Bronze), Gold Shaft
+      Mining (Bronze), Stone Shaft Mining (Bronze) — je -20% Rate,
+      Double-Bit Axe + Bow Saw stacken
 - [ ] Auto-Scout für Scout-Einheit (erkundet Karte autonom)
-- [ ] Garrison Heal in Town Center / Burg
 - [ ] Build Queue für Gebäude (Gebäude-Slots wie in AoE2:DE)
 - [ ] Tech-Tree-UI als overlay (statt einzelne Buttons im Gebäude)
-- [ ] Gather-Boni durch Eco-Techs (Double-Bit Axe, Bow Saw, Two-Man Saw,
-      Gold Mining → Gold Shaft Mining, etc.)
+- [ ] Pathfinding-Verbesserung (AoE2 Group Movement)
 
 ## Phase 3 — Combat Parity
 

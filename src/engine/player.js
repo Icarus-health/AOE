@@ -59,6 +59,25 @@ class Player {
             FishingInteraction: 0,
             ConversionInteraction: 0
         }
+        // Multiplicative bucket used by civ bonuses and Phase 2 eco techs.
+        // Values are factors applied to the effective rate AFTER the flat
+        // interactionBonus subtraction, so 0.8 = -20% rate (20% faster)
+        // and 1.0 = no change. Multiplying two bonuses composes them.
+        this.interactionMultiplier = {
+            BuilderInteraction: 1,
+            RepairInteraction: 1,
+            ShipRepairInteraction: 1,
+            FarmingInteraction: 1,
+            ChopInteraction: 1,
+            ForageInteraction: 1,
+            GoldMineInteraction: 1,
+            StoneMineInteraction: 1,
+            FisherInteraction: 1,
+            HunterInteraction: 1,
+            ButcherInteraction: 1,
+            FishingInteraction: 1,
+            ConversionInteraction: 1
+        }
 
         // Apply civilisation-specific stat bonuses (data lives in
         // src/engine/civilizations.js so the balance pass can be tuned
