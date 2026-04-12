@@ -3,6 +3,10 @@ class PlayerDefinition {
         this.index = index;
         this.name = name;
         if (civ === null) {
+            // Civ selection happens before the simulation seeds the game RNG
+            // (it is part of the game *definition*), so falling back to
+            // Math.random here is intentional — the picked value is captured
+            // in the definition and broadcast to every peer at lobby start.
             this.civ = Math.floor(Math.random() * CIVILIZATIONS.length);
         } else {
             this.civ = civ;
@@ -95,8 +99,13 @@ function leftpad(val, width, pad) {
     return Array(width + 1).join(pad).substr(str.length) + val;
 }
 
+// Use the deterministic engine RNG via late binding so the import graph
+// stays acyclic — utils.js cannot import from engine/.
+let _gameRandomImpl = Math.random;
+function _setGameRandomImpl(fn) { _gameRandomImpl = fn; }
+
 function rand_choice(choices) {
-    return choices[Math.floor(Math.random() * choices.length)];
+    return choices[Math.floor(_gameRandomImpl() * choices.length)];
 }
 
 function distance(p1, p2) {
@@ -125,5 +134,6 @@ export {
     PlayerDefinition, PLAYER_COLORS, RESOURCE_TYPES, RESOURCE_NAME,
     AGES, CIVILIZATIONS, CIVILIZATIONS_NAMES, UNIT_TYPES, FPS,
     to_binary, leftpad, rand_choice, rect_intersection, distance,
-    manhatan_subtile_distance, getCanvasContext
+    manhatan_subtile_distance, getCanvasContext,
+    _setGameRandomImpl
 }

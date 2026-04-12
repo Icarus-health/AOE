@@ -1,4 +1,5 @@
 import { UNIT_TYPES, RESOURCE_TYPES, RESOURCE_NAME, FPS } from '../utils.js';
+import { gameRandom } from './rng.js';
 import { Spear } from './projectiles.js';
 import { Unit } from './units/unit.js';
 import { Building } from './buildings/building.js';
@@ -621,7 +622,7 @@ class ConversionInteraction extends Interaction {
             this.engine.interactOrder(this.active, this.passive);
         } else if (this.passive.destroyed || this.passive.hp <= 0) {
             this.terminate();
-        } else if (this.active.ticks_waited > this.MINIMAL_TIME && Math.random() < chance) {
+        } else if (this.active.ticks_waited > this.MINIMAL_TIME && gameRandom() < chance) {
             this.passive.wasConverted = true;
             this.passive.terminateInteraction();
 

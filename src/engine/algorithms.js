@@ -1,3 +1,5 @@
+import { gameRandom } from './rng.js';
+
 class BFSWalker {
     constructor(seed, queue, visitor, node_getter, extra_condition=null, lowerBound=NaN, upperBound=NaN) {
         this.visited = {};
@@ -62,7 +64,7 @@ class MultiSlotQueue {
         return true;
     }
     push(value) {
-        let num = Math.floor(Math.random() * this.slots.length);
+        let num = Math.floor(gameRandom() * this.slots.length);
         this.slots[num].values.push(value);
     }
     pop() {

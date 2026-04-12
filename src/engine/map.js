@@ -1,5 +1,6 @@
 import { BFSWalker, MultiSlotQueue, StandardQueue } from './algorithms.js';
 import { rand_choice } from '../utils.js';
+import { gameRandom } from './rng.js';
 import { PineTree, LeafTree, PalmTree } from './trees.js';
 import { TERRAIN_TYPES, SAND_TRANSFORMATIONS, GRASS_TRANSFORMATIONS } from './terrain.js'
 
@@ -152,22 +153,22 @@ class RandomMap extends Map {
 
         while (total_forest_surface < desired_total_forest_surface) {
             let seed = {
-                x: Math.floor(Math.random() * this.edge_size),
-                y: Math.floor(Math.random() * this.edge_size)
+                x: Math.floor(gameRandom() * this.edge_size),
+                y: Math.floor(gameRandom() * this.edge_size)
             }
             while (!this.isSuitableForTree(seed.x, seed.y)) {
                 seed = {
-                    x: Math.floor(Math.random() * this.edge_size),
-                    y: Math.floor(Math.random() * this.edge_size)
+                    x: Math.floor(gameRandom() * this.edge_size),
+                    y: Math.floor(gameRandom() * this.edge_size)
                 }
             }
             let current_forest_surface = 0;
-            let desired_current_forest_surface = Math.floor((Math.random() * .1 + .025) * desired_total_forest_surface);
+            let desired_current_forest_surface = Math.floor((gameRandom() * .1 + .025) * desired_total_forest_surface);
 
             let ForestType = rand_choice([LeafTree, PalmTree, PineTree]);
 
             let walker = new BFSWalker(seed, new MultiSlotQueue(2), function(node) {
-                    if (Math.random() > .8) return;
+                    if (gameRandom() > .8) return;
                     if (forest_surface_id[node.x][node.y] < forest_id) return;
                     if (!that.isSuitableForTree(node.x, node.y)) return;
                     if (node.x == 128 && node.y == 128) return;
@@ -263,12 +264,12 @@ class CoastalMap extends RandomMap {
     randomizeTerrain() {
         let total_surface = this.edge_size ** 2;
         // 60% - 80% of land
-        let desired_land_surface = Math.floor(total_surface * (Math.random() * 2 + 6) / 10);
+        let desired_land_surface = Math.floor(total_surface * (gameRandom() * 2 + 6) / 10);
         this.land_surface = 1;
 
         let seed = {
-            x: Math.floor(this.edge_size / 2),// + Math.random() * 30 - 60),
-            y: Math.floor(this.edge_size / 2),// + Math.random() * 30 - 60),
+            x: Math.floor(this.edge_size / 2),// + gameRandom() * 30 - 60),
+            y: Math.floor(this.edge_size / 2),// + gameRandom() * 30 - 60),
             terrain: Map.TERRAIN_TYPES.GRASS
         }
 
@@ -298,7 +299,7 @@ class CoastalMap extends RandomMap {
         this.makeLake(50 - 30, 75 + 30, 10);
     }
     mutateTerrain(terrain, prob = .0275) {
-        if (Math.random() < prob) {
+        if (gameRandom() < prob) {
             if (terrain == Map.TERRAIN_TYPES.GRASS) return Map.TERRAIN_TYPES.SAND;
             else return Map.TERRAIN_TYPES.GRASS;
         } else {

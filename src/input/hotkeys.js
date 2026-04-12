@@ -1,4 +1,6 @@
 import { audioManager } from '../audio/audio_manager.js';
+import { COMMANDS } from '../engine/netplay/command_queue.js';
+import { STANCES } from '../engine/stances.js';
 
 /**
  * Simple hotkey layer — bound on window.keydown.
@@ -52,6 +54,23 @@ export function initHotkeys(game) {
                 }
                 break;
 
+            // ---------- AoE2-style stances (F1..F4) ----------
+            case 'F1': submitStance(engine, STANCES.AGGRESSIVE);   e.preventDefault(); break;
+            case 'F2': submitStance(engine, STANCES.DEFENSIVE);    e.preventDefault(); break;
+            case 'F3': submitStance(engine, STANCES.STAND_GROUND); e.preventDefault(); break;
+            case 'F4': submitStance(engine, STANCES.NO_ATTACK);    e.preventDefault(); break;
+
+            // ---------- town bell — recall every villager ----------
+            case 'Backquote':
+                if (engine && engine.current_player) {
+                    engine.submitCommand({
+                        type: COMMANDS.TOWN_BELL,
+                        playerIndex: engine.current_player.index,
+                    });
+                    audioManager.play('click');
+                }
+                break;
+
             // ---------- audio ----------
             case 'KeyM':
                 audioManager.toggleMute();
@@ -97,6 +116,17 @@ function getEngine(game) {
 
 function getViewer(game) {
     return game?.navigator?.gameViewer || null;
+}
+
+function submitStance(engine, stance) {
+    if (!engine || !engine.selectedEntity) return;
+    if (engine.selectedEntity.netId == null) return;
+    engine.submitCommand({
+        type: COMMANDS.STANCE,
+        playerIndex: engine.current_player.index,
+        subjectId: engine.selectedEntity.netId,
+        stance,
+    });
 }
 
 function scrollCamera(viewer, dx, dy) {

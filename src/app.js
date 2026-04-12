@@ -8,6 +8,8 @@ import { audioManager } from './audio/audio_manager.js';
 import { initHotkeys } from './input/hotkeys.js';
 import { initInstallPrompt } from './pwa/install.js';
 import { initViewport } from './input/viewport.js';
+import { MultiplayerLobby } from './ui/multiplayer_lobby.js';
+import { PlayerDefinition } from './utils.js';
 
 
 class Game {
@@ -97,6 +99,11 @@ Sprites.ready.then(async function () {
     // via window.game, so it works even before a match actually starts.
     initHotkeys(game);
 
+    // Wire the DOM-based multiplayer lobby button. The original Graphics-
+    // layer main menu lives on a canvas, so we overlay a simple HTML button
+    // for entering the multiplayer flow without having to refactor menu.js.
+    mountMultiplayerButton(game);
+
     // Begin preloading sound assets. Failures are non-fatal: if an asset is
     // missing the manager simply skips playing it.
     audioManager.preloadAll().catch((err) => {
@@ -110,3 +117,60 @@ Sprites.ready.then(async function () {
         runner.run(true);
     }
 });
+
+
+/**
+ * Mount the DOM-only "Multiplayer" button. When clicked it opens the
+ * MultiplayerLobby modal; when the lobby reports a connection it kicks
+ * off the match by handing the existing menu navigator a fresh game
+ * definition with the networking parameters baked in.
+ */
+function mountMultiplayerButton(game) {
+    const btn = document.createElement('button');
+    btn.id = 'mp-open-btn';
+    btn.type = 'button';
+    btn.textContent = 'Multiplayer';
+    btn.style.cssText = `
+        position: fixed; top: 16px; right: 16px; z-index: 800;
+        padding: 10px 16px; font-size: 14px; font-weight: bold;
+        background: #8b7355; color: #fff;
+        border: 2px solid #c4a57b; border-radius: 6px; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    `;
+    document.body.appendChild(btn);
+
+    const lobby = new MultiplayerLobby({
+        onStart: (networking) => startMultiplayerMatch(game, networking),
+    });
+    btn.addEventListener('click', () => lobby.open());
+}
+
+function startMultiplayerMatch(game, networking) {
+    // Build a minimal two-human game definition. Player 0 = host, player 1 = joiner.
+    // is_cpu = false so neither player gets an AI controller.
+    const players = [
+        new PlayerDefinition(0, 'Host',   null, 0, null, false),
+        new PlayerDefinition(1, 'Friend', null, 1, null, false),
+    ];
+    for (const p of players) p.startingAge = 0;
+
+    const definition = {
+        players,
+        map: {
+            size: 1,
+            type: 0,
+            startingAge: 0,
+            resources: 1,
+            difficulty: 1,
+            revealMap: false,
+            fullTech: false,
+            addSampleUnits: true,
+        },
+        networking,
+    };
+    // Hide the multiplayer button while in-game.
+    const mpBtn = document.getElementById('mp-open-btn');
+    if (mpBtn) mpBtn.style.display = 'none';
+    // Hand off to the existing menu navigator → spins up GameViewer + Engine.
+    game.navigator.startGame(definition);
+}

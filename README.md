@@ -8,16 +8,69 @@ opponent, sound effects, hotkeys and offline support.
 
 ## What's new
 
-| Area              | Module                                 | Description                                                          |
-|-------------------|----------------------------------------|----------------------------------------------------------------------|
-| Build toolchain   | `vite.config.js`, `package.json`       | Webpack 3 + Babel 6 → Vite 5 + `vite-plugin-pwa`                     |
-| AI opponent       | `src/engine/ai/ai_player.js`           | Three-state machine: building → expanding → attacking                |
-| Sound             | `src/audio/audio_manager.js`           | Preloaded HTMLAudio with persisted volume, music + SFX channels      |
-| Hotkeys           | `src/input/hotkeys.js`                 | Camera scroll, control groups (Ctrl+1..9), `M` to mute               |
-| Responsive canvas | `src/input/viewport.js`, `src/app.js`  | Stage scales to `window.innerWidth/Height` at boot                   |
-| HUD minimap       | `src/ui/minimap.js`                    | Optional DOM-canvas minimap overlay                                  |
-| PWA install       | `src/pwa/install.js`                   | Captures `beforeinstallprompt` and surfaces an install button        |
-| Frame limiting    | `src/engine/engine.js`                 | requestAnimationFrame loop targeting the engine's `FPS` constant     |
+| Area               | Module                                       | Description                                                                |
+|--------------------|----------------------------------------------|----------------------------------------------------------------------------|
+| Build toolchain    | `vite.config.js`, `package.json`             | Webpack 3 + Babel 6 → Vite 5 + `vite-plugin-pwa`                           |
+| AI opponent        | `src/engine/ai/ai_player.js`                 | Build-order driven: building → expanding → attacking + reactive defence   |
+| **Lockstep netplay** | `src/engine/netplay/command_queue.js`      | Deterministic command queue with input delay & checksum desync detection   |
+| **WebRTC P2P**     | `src/engine/netplay/transport.js`            | Manual-signalling P2P transport (no server) + optional WebSocket relay     |
+| **Multiplayer lobby** | `src/ui/multiplayer_lobby.js`             | DOM-overlay lobby with host/join offer-answer flow                         |
+| **Seeded RNG**     | `src/engine/rng.js`                          | Mulberry32 PRNG seeded by the host so peers stay in sync                   |
+| **Stances**        | `src/engine/stances.js`                      | AoE2-style aggressive / defensive / stand-ground / no-attack               |
+| **Town Bell**      | `src/engine/engine.js`                       | Recall every villager to the nearest Town Center with one keystroke       |
+| **Formations**     | `src/engine/formations.js`                   | Box / line / flank layout helpers for group moves                          |
+| Sound              | `src/audio/audio_manager.js`                 | Preloaded HTMLAudio + procedurally-generated SFX bank                     |
+| Hotkeys            | `src/input/hotkeys.js`                       | Camera, control groups, F1..F4 stances, `` ` `` town bell, `M` mute       |
+| Responsive canvas  | `src/input/viewport.js`, `src/app.js`        | Stage scales to `window.innerWidth/Height` at boot                         |
+| HUD minimap        | `src/ui/minimap.js`                          | Optional DOM-canvas minimap overlay                                        |
+| PWA install        | `src/pwa/install.js`                         | Captures `beforeinstallprompt` and surfaces an install button              |
+| Frame limiting     | `src/engine/engine.js`                       | requestAnimationFrame loop targeting the engine's `FPS` constant           |
+
+## Multiplayer
+
+The game uses a **lockstep simulation** model — every client runs the same
+deterministic engine and only sends commands over the wire (move, build,
+recruit, stance, town bell, etc.). Bandwidth scales with player count, not
+with simulation complexity, and the model is robust to high latency.
+
+### Connection modes
+
+| Mode             | Setup                                        | When to use                          |
+|------------------|----------------------------------------------|--------------------------------------|
+| **WebRTC P2P**   | manual offer/answer copy-paste, no server    | default — fast, free, no infra       |
+| WebSocket relay  | `node scripts/relay_server.js`               | when both peers are behind hard NAT  |
+| Local AI match   | none                                         | single-player, drives the same lockstep code path |
+
+### Hosting a game
+
+1. Click **Multiplayer → Host game** in the top-right of the main menu.
+2. Copy the generated offer string and send it to your friend (any chat).
+3. When they paste it back as an answer, click **Accept answer → Start**.
+
+### Joining
+
+1. Click **Multiplayer → Join game**.
+2. Paste the host's offer string, click **Generate Answer**.
+3. Send the answer back to the host. The host clicks **Start** and the
+   match begins on both clients.
+
+### Why lockstep needs determinism
+
+Every random call that affects the simulation goes through the seeded
+RNG in `src/engine/rng.js`. The host shares its seed in the lobby's
+`start` message; all peers re-seed identically before frame 0 and stay
+in sync until either side issues a non-deterministic operation. To
+catch desyncs early the command queue exchanges turn-checksums and
+fires `console.error('[netplay] DESYNC at turn ...')` if peers disagree.
+
+## AoE2-style gameplay
+
+| Feature       | How to use                                                                       |
+|---------------|----------------------------------------------------------------------------------|
+| Stances       | Select a unit, press **F1** (aggressive), **F2** (defensive), **F3** (stand ground), **F4** (no attack) |
+| Town Bell     | Press the backtick key (**`** `) to recall every villager to the nearest Town Center |
+| Patrol        | Wired through `COMMANDS.PATROL` — issue from code via `engine.submitCommand(...)` |
+| Formations    | `computeFormationTargets(units, center, FORMATIONS.BOX)` from `src/engine/formations.js` |
 
 ## Quick start
 

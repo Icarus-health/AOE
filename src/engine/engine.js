@@ -28,6 +28,8 @@ import { distance, manhatan_subtile_distance, FPS } from '../utils.js'
 import { Technologies } from './technologies.js';
 import { AIPlayer } from './ai/ai_player.js';
 import { audioManager } from '../audio/audio_manager.js';
+import { gameRandom, seedGameRandom } from './rng.js';
+import { CommandQueue, COMMANDS } from './netplay/command_queue.js';
 
 
 class Engine {
@@ -68,6 +70,27 @@ class Engine {
 
         this.selectedEntity = null;
 
+        // Seed the deterministic RNG. In a multiplayer match the host shares
+        // its seed in the lobby; for single-player we derive one from the
+        // current time so each game still feels different.
+        const seed = (this.definition.networking && this.definition.networking.seed) || (Date.now() & 0x7fffffff);
+        seedGameRandom(seed);
+
+        // Lockstep command queue. In single-player it runs in "local-only"
+        // mode and applies commands instantly; in multiplayer it gates the
+        // simulation on receiving every peer's bundle for the current turn.
+        const net = this.definition.networking || {};
+        this.commandQueue = new CommandQueue({
+            localPeerId: net.localPeerId ?? 0,
+            peerIds: net.peerIds ?? [0],
+            transport: net.transport ?? null,
+        });
+        this.commandQueue.onCommandsApplied = (cb) => this.commandQueue.listeners.push(cb);
+        this.commandQueue.onCommandsApplied((cmd, engine) => this._applyCommand(cmd, engine));
+        this.commandQueue.onDesync = (info) => {
+            console.error('[netplay] DESYNC at turn', info.turn, info.checksums);
+        };
+
         // Spawn an AIPlayer for every CPU-controlled slot. The human player
         // is assumed to be index 0 and is always left uncontrolled.
         this.aiPlayers = [];
@@ -80,6 +103,70 @@ class Engine {
                 this.aiPlayers.push(new AIPlayer(this.players[i], this, difficulty));
             }
         }
+    }
+    /**
+     * Apply a single lockstep command. Called once per command, in stable
+     * order, on every peer — so it must operate exclusively on simulation
+     * state (no UI / no network calls).
+     */
+    _applyCommand(cmd, engine) {
+        const player = this.players[cmd.playerIndex];
+        if (!player) return;
+        const subject = cmd.subjectId != null ? this._findEntity(cmd.subjectId) : null;
+        const target  = cmd.targetId  != null ? this._findEntity(cmd.targetId)  : null;
+
+        switch (cmd.type) {
+            case COMMANDS.MOVE:
+                if (subject) this.moveOrder(subject, cmd.point);
+                break;
+            case COMMANDS.INTERACT:
+                if (subject && target) this.interactOrder(subject, target);
+                break;
+            case COMMANDS.STOP:
+                if (subject && typeof subject.stopInteraction === 'function') subject.stopInteraction();
+                break;
+            case COMMANDS.STANCE:
+                if (subject) subject.stance = cmd.stance;
+                break;
+            case COMMANDS.PATROL:
+                if (subject) {
+                    subject.patrolWaypoints = [
+                        { x: subject.subtile_x, y: subject.subtile_y },
+                        cmd.point,
+                    ];
+                    subject.patrolIndex = 1;
+                    this.moveOrder(subject, cmd.point);
+                }
+                break;
+            case COMMANDS.TOWN_BELL: {
+                // Recall every villager of the issuing player to their
+                // nearest town center. AoE2-style emergency bell.
+                const villagers = this.units.filter(
+                    (u) => u.player === player && u.TYPE === 'villager' && !u.destroyed
+                );
+                const tc = player.buildings.find(
+                    (b) => b instanceof TownCenter && !b.destroyed
+                );
+                if (tc) {
+                    for (const v of villagers) {
+                        try { this.interactOrder(v, tc); } catch (err) { /* ignore */ }
+                    }
+                }
+                break;
+            }
+            case COMMANDS.NOOP:
+            default:
+                break;
+        }
+    }
+    _findEntity(id) {
+        for (const u of this.units) if (u.netId === id) return u;
+        for (const b of this.buildings) if (b.netId === id) return b;
+        return null;
+    }
+    /** Public API for game-side modules (UI, AI) to enqueue a command. */
+    submitCommand(command) {
+        this.commandQueue.submit(command);
     }
     processUnits() {
         for (let entity of this.units) {
@@ -95,10 +182,10 @@ class Engine {
                     if (this.framesCount % entity.FRAME_RATE[Unit.prototype.STATE.DYING] == 0) ++entity.frame;
                 } else entity.toggleDead(this);
             } else if (!entity.hasFullPath && entity.interactionObject != null) {
-                if (Math.random() > .85) ++entity.ticks_waited;
+                if (gameRandom() > .85) ++entity.ticks_waited;
                 if (entity.attempts_count >= Engine.prototype.UNIT_MAX_INTERACTION_ATTEMPTS) {
                     entity.terminateInteraction();
-                } else if (entity.ticks_waited > Engine.prototype.UNIT_MAX_WAIT_TIME * 3 && Math.random() > .85) {
+                } else if (entity.ticks_waited > Engine.prototype.UNIT_MAX_WAIT_TIME * 3 && gameRandom() > .85) {
                     entity.ticks_waited = 0;
                     ++entity.attempts_count;
                     let dist = manhatan_subtile_distance(entity.getCenterSubtile(), entity.interactionObject.getCenterSubtile());
@@ -198,8 +285,8 @@ class Engine {
             this.bypassOrder(entity);
         } else {
             // if unit is waiting for too long use randomized way of computing new route
-            if (Math.random() > .85) ++entity.ticks_waited;
-            if (entity.ticks_waited > Engine.prototype.UNIT_MAX_WAIT_TIME && Math.random() > .85) {
+            if (gameRandom() > .85) ++entity.ticks_waited;
+            if (entity.ticks_waited > Engine.prototype.UNIT_MAX_WAIT_TIME && gameRandom() > .85) {
                 entity.ticks_waited = 0;
                 this.bypassOrder(entity);
             }
@@ -394,6 +481,17 @@ class Engine {
         }
     }
     processLoop() {
+        // Lockstep gate: ask the command queue whether we are allowed to
+        // advance. In single-player this is always true; in multiplayer it
+        // returns false until every peer's bundle for the current turn has
+        // arrived. We still draw the (unchanged) frame so the UI keeps
+        // responding even while the simulation is paused waiting on a peer.
+        const canAdvance = this.commandQueue.advanceFrame(this);
+        if (!canAdvance) {
+            this.viewer.stage.draw();
+            return;
+        }
+
         ++this.framesCount;
         this.viewer.process();
         this.processProjectiles();
@@ -468,14 +566,14 @@ class Engine {
         active.initInteraction();
     }
     escapeOrder(unit, attacker=null) {
-        let angle = Math.random() * Math.PI * 2;
+        let angle = gameRandom() * Math.PI * 2;
         if (attacker) {
             angle = Math.atan2(unit.subtile_y - attacker.subtile_y, unit.subtile_x - attacker.subtile_x);
-            angle += (Math.random() * Math.PI / 2) - Math.PI / 4
+            angle += (gameRandom() * Math.PI / 2) - Math.PI / 4
         }
         let target = {
-            x: unit.subtile_x + Math.floor((5 + Math.random() * 6) * Math.cos(angle)),
-            y: unit.subtile_y + Math.floor((5 + Math.random() * 6) * Math.sin(angle))
+            x: unit.subtile_x + Math.floor((5 + gameRandom() * 6) * Math.cos(angle)),
+            y: unit.subtile_y + Math.floor((5 + gameRandom() * 6) * Math.sin(angle))
         }
 
         this.moveOrder(unit, target);
@@ -493,6 +591,7 @@ class Engine {
         }
     }
     addUnit(unit) {
+        if (unit.netId == null) unit.netId = ++Engine.prototype._nextNetId;
         this.map.fillSubtilesWith(unit.subtile_x, unit.subtile_y, unit.SUBTILE_WIDTH, unit);
         this.map.entities.push(unit);
         this.units.push(unit);
@@ -504,6 +603,7 @@ class Engine {
         }
     }
     addBuilding(building) {
+        if (building.netId == null) building.netId = ++Engine.prototype._nextNetId;
         this.map.fillSubtilesWith(building.subtile_x, building.subtile_y, building.SUBTILE_WIDTH, building);
         this.map.entities.push(building);
         this.buildings.push(building);
@@ -755,6 +855,7 @@ class Engine {
     }
 }
 Engine.prototype.frameRate = FPS;
+Engine.prototype._nextNetId = 0;
 Engine.prototype.AREA_ENTRANCE_RESOLUTION = {
     GO: 0, // area is not occupied - free to go
     WAIT: 1, // area is temporarily occupied - wait until it's free

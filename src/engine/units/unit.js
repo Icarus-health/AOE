@@ -3,6 +3,8 @@ import { Sprites } from '../../sprites.js';
 import { TERRAIN_TYPES } from '../terrain.js';
 import { Building } from '../buildings/building.js';
 import * as interactions from '../interactions.js';
+import { gameRandom } from '../rng.js';
+import { DEFAULT_STANCE } from '../stances.js';
 import { UNIT_TYPES } from '../../utils.js';
 
 
@@ -14,8 +16,17 @@ class Unit extends Entity {
         this.player = player;
         this.state = this.STATE.IDLE;
         this.setLevel(level);
-        this.rotation = rotation != null ? rotation : Math.floor(Math.random() * 8);
+        this.rotation = rotation != null ? rotation : Math.floor(gameRandom() * 8);
         this.frame = 0;
+        // AoE2-style additions: combat stance, optional patrol route,
+        // remembered "home" position used by defensive stance leashing,
+        // and a stable network id assigned by Engine.addUnit so commands
+        // can target this entity unambiguously across peers.
+        this.stance = DEFAULT_STANCE;
+        this.patrolWaypoints = null;
+        this.patrolIndex = 0;
+        this.homeSubtile = { x: subtile_x, y: subtile_y };
+        this.netId = null;
         this.needsProcessing = false;
         this.path = null;
         this.path_progress = 0;

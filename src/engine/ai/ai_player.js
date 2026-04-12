@@ -14,48 +14,109 @@ import { GoldMine } from '../resources/gold.js';
 import { StoneMine } from '../resources/stone.js';
 import { LeafTree } from '../trees.js';
 import { UNIT_TYPES } from '../../utils.js';
+import { gameRandom } from '../rng.js';
 
 
 /**
- * AIPlayer — drives a single CPU player with a simple three-state machine.
+ * AIPlayer — drives a single CPU player with a build-order driven state
+ * machine, scout, and reactive defence.
  *
- * States:
- *   - building:   produce villagers, gather resources, build the economy
- *   - expanding:  build military structures, recruit fighters
- *   - attacking:  send the army at the nearest human enemy
+ * Phases:
+ *   - building   produce villagers, gather resources, follow a build order
+ *   - expanding  add military buildings & train units
+ *   - attacking  group army & strike
  *
- * The AI uses the same public Engine methods that the human-player UI uses
- * (`interactOrder`, `moveOrder`, `addBuilding`, `addUnit`) so its actions
- * honour the same rules as player actions.
+ * Difficulty controls:
+ *   - tick interval (how snappy the AI feels)
+ *   - villager target (economy ceiling)
+ *   - army size threshold for switching to attack
+ *   - build order length & variety
+ *
+ * The AI also reacts to enemy proximity ("danger near base") by spawning
+ * defensive militia and recalling scouts. Build orders are picked at game
+ * start using the seeded RNG so multiplayer matches stay deterministic.
  */
 export class AIPlayer {
     constructor(player, engine, difficulty = 'normal') {
         this.player = player;
         this.engine = engine;
         this.difficulty = difficulty;
-        this.tickInterval = AIPlayer.TICK_INTERVALS[difficulty] ?? AIPlayer.TICK_INTERVALS.normal;
+        const profile = AIPlayer.PROFILES[difficulty] || AIPlayer.PROFILES.normal;
+        this.tickInterval = profile.tickInterval;
+        this.profile = profile;
         this.state = 'building';
 
-        // internal bookkeeping
+        // Pick a deterministic build order from the difficulty's pool.
+        this.buildOrder = profile.buildOrders[
+            Math.floor(gameRandom() * profile.buildOrders.length)
+        ];
+        this.buildStep = 0;
+
+        // Bookkeeping.
         this.lastAttackFrame = 0;
         this.lastBuildFrame = 0;
-        this.armyRallyPoint = null;
+        this.lastDefenceFrame = 0;
+        this.scoutAssigned = false;
     }
 
-    // How often the AI re-evaluates its plan (in engine frames).
-    static TICK_INTERVALS = {
-        easy: 140,
-        normal: 70,
-        hard: 35,
+    // Difficulty profiles. The build orders use building class names so the
+    // AI can pick a strategy at start without holding hard refs to classes.
+    static PROFILES = {
+        easy: {
+            tickInterval: 140,
+            villagerTarget: 8,
+            attackArmySize: 12,
+            defenceArmySize: 4,
+            buildOrders: [
+                ['StoragePit', 'House', 'Granary', 'Barracks', 'House', 'Barracks'],
+            ],
+        },
+        normal: {
+            tickInterval: 70,
+            villagerTarget: 14,
+            attackArmySize: 10,
+            defenceArmySize: 6,
+            buildOrders: [
+                ['StoragePit', 'House', 'Granary', 'Barracks', 'House', 'ArcheryRange', 'Barracks', 'House'],
+                ['Granary', 'StoragePit', 'House', 'Barracks', 'Barracks', 'ArcheryRange', 'House'],
+            ],
+        },
+        hard: {
+            tickInterval: 35,
+            villagerTarget: 20,
+            attackArmySize: 8,
+            defenceArmySize: 8,
+            buildOrders: [
+                ['StoragePit', 'House', 'Barracks', 'Granary', 'Barracks', 'ArcheryRange', 'House', 'ArcheryRange', 'House'],
+                ['StoragePit', 'Granary', 'Barracks', 'House', 'Barracks', 'House', 'ArcheryRange', 'ArcheryRange', 'House'],
+            ],
+        },
     };
+
+    static get TICK_INTERVALS() {
+        return {
+            easy: AIPlayer.PROFILES.easy.tickInterval,
+            normal: AIPlayer.PROFILES.normal.tickInterval,
+            hard: AIPlayer.PROFILES.hard.tickInterval,
+        };
+    }
 
     // Map the in-game difficulty setting (0..2) to an AI difficulty label.
     static difficultyFromIndex(idx) {
         return ['easy', 'normal', 'hard'][idx] || 'normal';
     }
 
+    static BUILDING_CLASSES = {
+        StoragePit, Granary, Barracks, ArcheryRange, House, TownCenter,
+    };
+
     tick(frameCount) {
         if (frameCount % this.tickInterval !== 0) return;
+
+        // Reactive defence runs on every tick regardless of phase — if an
+        // enemy is detected near a friendly building we drop everything
+        // and recall available units to deal with it.
+        this.checkDefence();
 
         this.evaluateState();
 
@@ -81,17 +142,73 @@ export class AIPlayer {
         const villagers = units.filter((u) => u.TYPE === UNIT_TYPES.VILLAGER);
         const military = units.filter((u) => u.TYPE !== UNIT_TYPES.VILLAGER && u.TYPE !== UNIT_TYPES.ANIMAL);
 
-        if (villagers.length < 8 || buildings.length < 3) {
+        const villagerTarget = this.profile.villagerTarget;
+        const armyTarget = this.profile.attackArmySize;
+
+        if (villagers.length < villagerTarget * 0.6 || buildings.length < 3) {
             this.state = 'building';
-        } else if (military.length < 10) {
+        } else if (military.length < armyTarget) {
             this.state = 'expanding';
         } else {
             this.state = 'attacking';
         }
     }
 
+    /**
+     * Reactive defence — scan for enemy units within striking distance of
+     * any friendly building. If we find some, recall the nearest available
+     * military and pull villagers to safety. Cooldown prevents thrash.
+     */
+    checkDefence() {
+        if (this.engine.framesCount - this.lastDefenceFrame < this.tickInterval) return;
+        const myBuildings = this.getMyBuildings();
+        if (myBuildings.length === 0) return;
+
+        let threat = null;
+        let threatBuilding = null;
+        outer: for (const b of myBuildings) {
+            for (const u of this.engine.units) {
+                if (u.destroyed || !u.player || u.player === this.player) continue;
+                if (u.TYPE === UNIT_TYPES.ANIMAL || u.TYPE === UNIT_TYPES.VILLAGER) continue;
+                const dx = u.subtile_x - b.subtile_x;
+                const dy = u.subtile_y - b.subtile_y;
+                if (Math.abs(dx) + Math.abs(dy) < 18) {
+                    threat = u;
+                    threatBuilding = b;
+                    break outer;
+                }
+            }
+        }
+        if (!threat) return;
+
+        this.lastDefenceFrame = this.engine.framesCount;
+
+        // Mobilise every soldier we already have.
+        const army = this.getMyUnits().filter(
+            (u) => u.CAN_ATTACK && u.TYPE !== UNIT_TYPES.VILLAGER && u.TYPE !== UNIT_TYPES.ANIMAL
+        );
+        for (const soldier of army) {
+            try { this.engine.interactOrder(soldier, threat); } catch (err) { /* ignore */ }
+        }
+
+        // If we have nothing to fight back with, panic-spawn militia and
+        // ring the (private) town bell so villagers garrison the town.
+        const military = army.length;
+        if (military < this.profile.defenceArmySize) {
+            const tc = myBuildings.find((b) => b instanceof TownCenter);
+            if (tc) {
+                this.spawnUnitNear(ClubMan, TownCenter, { food: 50 });
+            }
+            // Recall villagers (mirrors the player TOWN_BELL command).
+            const villagers = this.getMyUnits().filter((u) => u.TYPE === UNIT_TYPES.VILLAGER);
+            for (const v of villagers) {
+                try { this.engine.interactOrder(v, threatBuilding); } catch (err) { /* ignore */ }
+            }
+        }
+    }
+
     // ------------------------------------------------------------------
-    // Phase: building — economy bootstrap
+    // Phase: building — economy bootstrap (follows the build order)
     // ------------------------------------------------------------------
     doBuildingPhase() {
         const villagers = this.getMyUnits().filter((u) => u.TYPE === UNIT_TYPES.VILLAGER);
@@ -103,28 +220,53 @@ export class AIPlayer {
             this.tryBuildNear(TownCenter, null);
         }
 
-        // 2. Ensure population headroom.
+        // 2. Pop headroom — preempt the food / wood spend on military.
         if (this.player.population + 2 >= this.player.max_population) {
             this.tryBuildNear(House, null);
         }
 
-        // 3. Storage for resources.
-        if (!buildings.some((b) => b instanceof StoragePit) && (resources.wood ?? 0) >= 150) {
-            this.tryBuildNear(StoragePit, null);
-        }
-        if (!buildings.some((b) => b instanceof Granary) && (resources.wood ?? 0) >= 150) {
-            this.tryBuildNear(Granary, null);
-        }
+        // 3. Walk the build order one step at a time.
+        this.advanceBuildOrder();
 
-        // 4. Produce villagers from the Town Center (direct spawn — we are
-        //    bypassing the UI-driven queue).
-        if (villagers.length < 12 && (resources.food ?? 0) >= 50) {
+        // 4. Produce villagers up to the difficulty cap.
+        if (villagers.length < this.profile.villagerTarget && (resources.food ?? 0) >= 50) {
             this.spawnUnitNear(Villager, TownCenter, { food: 50 });
         }
 
-        // 5. Assign idle villagers to gather resources with the goal of
-        //    balancing food > wood > gold > stone.
+        // 5. Assign a scout if we have enough villagers — sends one to a
+        //    random map subtile so the AI gathers map intel.
+        this.maybeSendScout();
+
+        // 6. Idle villagers gather resources, biased food → wood → gold → stone.
         this.assignIdleVillagers(villagers);
+    }
+
+    advanceBuildOrder() {
+        if (this.buildStep >= this.buildOrder.length) return;
+        const nextName = this.buildOrder[this.buildStep];
+        const Class = AIPlayer.BUILDING_CLASSES[nextName];
+        if (!Class) { this.buildStep++; return; }
+        const cost = Class.prototype.COST || {};
+        if (this.player.deficitResource(cost)) return;
+        const before = this.getMyBuildings().length;
+        this.tryBuildNear(Class, null);
+        // If something was actually built, advance the cursor.
+        if (this.getMyBuildings().length > before) this.buildStep++;
+    }
+
+    maybeSendScout() {
+        if (this.scoutAssigned) return;
+        const villagers = this.getMyUnits().filter((u) => u.TYPE === UNIT_TYPES.VILLAGER);
+        if (villagers.length < 6) return;
+        // Pick the villager furthest from any resource (least busy proxy).
+        const v = villagers[0];
+        const map = this.engine.map;
+        if (!map) return;
+        const target = {
+            x: Math.floor(gameRandom() * map.edge_size * 2),
+            y: Math.floor(gameRandom() * map.edge_size * 2),
+        };
+        try { this.engine.moveOrder(v, target); this.scoutAssigned = true; } catch (err) { /* ignore */ }
     }
 
     // ------------------------------------------------------------------
