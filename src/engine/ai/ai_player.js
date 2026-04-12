@@ -9,6 +9,9 @@ import { Barracks } from '../buildings/barracks.js';
 import { ArcheryRange } from '../buildings/archery_range.js';
 import { StoragePit } from '../buildings/storage_pit.js';
 import { Granary } from '../buildings/granary.js';
+import { Tower } from '../buildings/tower.js';
+import { Wall } from '../buildings/wall.js';
+import { Stable } from '../buildings/stable.js';
 import { Bush } from '../resources/bush.js';
 import { GoldMine } from '../resources/gold.js';
 import { StoneMine } from '../resources/stone.js';
@@ -37,13 +40,17 @@ import { gameRandom } from '../rng.js';
  * start using the seeded RNG so multiplayer matches stay deterministic.
  */
 export class AIPlayer {
-    constructor(player, engine, difficulty = 'normal') {
+    constructor(player, engine, difficulty = 'normal', personality = null) {
         this.player = player;
         this.engine = engine;
         this.difficulty = difficulty;
-        const profile = AIPlayer.PROFILES[difficulty] || AIPlayer.PROFILES.normal;
+        // Personality overrides difficulty if it names an existing profile,
+        // otherwise it just becomes a label. This lets the lobby pass either
+        // ("hard") or ("normal" + "rusher") and get sensible behaviour.
+        let profile = AIPlayer.PROFILES[personality] || AIPlayer.PROFILES[difficulty] || AIPlayer.PROFILES.normal;
         this.tickInterval = profile.tickInterval;
         this.profile = profile;
+        this.personality = profile.personality || 'balanced';
         this.state = 'building';
 
         // Pick a deterministic build order from the difficulty's pool.
@@ -61,12 +68,19 @@ export class AIPlayer {
 
     // Difficulty profiles. The build orders use building class names so the
     // AI can pick a strategy at start without holding hard refs to classes.
+    //
+    // Each profile may declare a `personality` ("balanced" | "rusher" |
+    // "turtle" | "boomer") which is used by the new personality-specific
+    // helpers below to bias decisions like "build walls early" or "skip
+    // economy and tech-rush militia". Personalities mix freely with the
+    // existing easy/normal/hard speed knobs.
     static PROFILES = {
         easy: {
             tickInterval: 140,
             villagerTarget: 8,
             attackArmySize: 12,
             defenceArmySize: 4,
+            personality: 'balanced',
             buildOrders: [
                 ['StoragePit', 'House', 'Granary', 'Barracks', 'House', 'Barracks'],
             ],
@@ -76,6 +90,7 @@ export class AIPlayer {
             villagerTarget: 14,
             attackArmySize: 10,
             defenceArmySize: 6,
+            personality: 'balanced',
             buildOrders: [
                 ['StoragePit', 'House', 'Granary', 'Barracks', 'House', 'ArcheryRange', 'Barracks', 'House'],
                 ['Granary', 'StoragePit', 'House', 'Barracks', 'Barracks', 'ArcheryRange', 'House'],
@@ -86,9 +101,43 @@ export class AIPlayer {
             villagerTarget: 20,
             attackArmySize: 8,
             defenceArmySize: 8,
+            personality: 'balanced',
             buildOrders: [
                 ['StoragePit', 'House', 'Barracks', 'Granary', 'Barracks', 'ArcheryRange', 'House', 'ArcheryRange', 'House'],
                 ['StoragePit', 'Granary', 'Barracks', 'House', 'Barracks', 'House', 'ArcheryRange', 'ArcheryRange', 'House'],
+            ],
+        },
+        // ----- personalities (Tier-A roadmap item #7) -----
+        rusher: {
+            tickInterval: 50,
+            villagerTarget: 9,           // bare minimum economy
+            attackArmySize: 6,           // attack with anything you have
+            defenceArmySize: 3,
+            personality: 'rusher',
+            buildOrders: [
+                ['House', 'Barracks', 'Barracks', 'House'],
+            ],
+        },
+        turtle: {
+            tickInterval: 80,
+            villagerTarget: 16,
+            attackArmySize: 18,          // never attacks unless heavily over-powered
+            defenceArmySize: 10,
+            personality: 'turtle',
+            buildOrders: [
+                ['StoragePit', 'House', 'Granary', 'Tower', 'House', 'Wall', 'Wall',
+                 'Tower', 'Barracks', 'House', 'ArcheryRange', 'Tower'],
+            ],
+        },
+        boomer: {
+            tickInterval: 60,
+            villagerTarget: 24,           // huge economy first
+            attackArmySize: 14,
+            defenceArmySize: 6,
+            personality: 'boomer',
+            buildOrders: [
+                ['StoragePit', 'Granary', 'House', 'House', 'House', 'StoragePit',
+                 'House', 'Barracks', 'House', 'ArcheryRange', 'Stable', 'House'],
             ],
         },
     };
@@ -108,6 +157,7 @@ export class AIPlayer {
 
     static BUILDING_CLASSES = {
         StoragePit, Granary, Barracks, ArcheryRange, House, TownCenter,
+        Tower, Wall, Stable,
     };
 
     tick(frameCount) {
@@ -145,12 +195,35 @@ export class AIPlayer {
         const villagerTarget = this.profile.villagerTarget;
         const armyTarget = this.profile.attackArmySize;
 
-        if (villagers.length < villagerTarget * 0.6 || buildings.length < 3) {
-            this.state = 'building';
-        } else if (military.length < armyTarget) {
-            this.state = 'expanding';
-        } else {
-            this.state = 'attacking';
+        // Personality-specific biases.
+        switch (this.personality) {
+            case 'rusher':
+                // Skip the long building phase as soon as we have a token economy.
+                if (villagers.length < 6) this.state = 'building';
+                else if (military.length < armyTarget) this.state = 'expanding';
+                else this.state = 'attacking';
+                return;
+            case 'turtle':
+                // Never voluntarily attack — only push when massively over-armed.
+                if (villagers.length < villagerTarget * 0.7 || buildings.length < 5) this.state = 'building';
+                else if (military.length < armyTarget * 1.5) this.state = 'expanding';
+                else this.state = 'attacking';
+                return;
+            case 'boomer':
+                // Maximise economy first, then a giant single push.
+                if (villagers.length < villagerTarget) this.state = 'building';
+                else if (military.length < armyTarget) this.state = 'expanding';
+                else this.state = 'attacking';
+                return;
+            default:
+                // 'balanced' / unspecified.
+                if (villagers.length < villagerTarget * 0.6 || buildings.length < 3) {
+                    this.state = 'building';
+                } else if (military.length < armyTarget) {
+                    this.state = 'expanding';
+                } else {
+                    this.state = 'attacking';
+                }
         }
     }
 

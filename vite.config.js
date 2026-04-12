@@ -15,6 +15,37 @@ export default defineConfig({
     assetsInlineLimit: 0,
     target: 'es2018',
     chunkSizeWarningLimit: 2048,
+    rollupOptions: {
+      output: {
+        // Split rarely-used UI panels and the netplay layer into their
+        // own chunks so the first-paint payload only ships the engine
+        // and the menu code path.
+        manualChunks: {
+          'netplay': [
+            'src/engine/netplay/transport.js',
+            'src/engine/netplay/replay.js',
+            'src/engine/netplay/command_queue.js',
+          ],
+          'ui-panels': [
+            'src/ui/multiplayer_lobby.js',
+            'src/ui/lobby_browser.js',
+            'src/ui/replay_panel.js',
+            'src/ui/settings_menu.js',
+            'src/ui/qr_code.js',
+          ],
+          'engine-fog': [
+            'src/engine/fog_of_war.js',
+          ],
+          'tests': [
+            'src/tests/runner.js',
+            'src/tests/test.js',
+            'src/tests/buildings_tests.js',
+            'src/tests/interaction_tests.js',
+            'src/tests/resource_tests.js',
+          ],
+        },
+      },
+    },
   },
   plugins: [
     VitePWA({

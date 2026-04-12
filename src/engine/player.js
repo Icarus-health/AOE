@@ -1,4 +1,5 @@
 import { manhatan_subtile_distance } from '../utils.js';
+import { applyCivilizationBonuses } from './civilizations.js';
 
 class Player {
     constructor(definition) {
@@ -53,6 +54,11 @@ class Player {
             FishingInteraction: 0,
             ConversionInteraction: 0
         }
+
+        // Apply civilisation-specific stat bonuses (data lives in
+        // src/engine/civilizations.js so the balance pass can be tuned
+        // without touching engine code).
+        applyCivilizationBonuses(this);
     }
     addBuilding(building) {
         this.buildings.push(building);

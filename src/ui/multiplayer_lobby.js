@@ -1,4 +1,5 @@
 import { WebRTCTransport, WebSocketTransport } from '../engine/netplay/transport.js';
+import { generateQrSvg } from './qr_code.js';
 
 /**
  * MultiplayerLobby — DOM overlay that drives the WebRTC handshake.
@@ -85,6 +86,10 @@ export class MultiplayerLobby {
         try {
             const offer = await this.transport.createOffer();
             this._byId('mp-offer-out').value = offer;
+            // Render the offer as a QR code so a friend with a phone can
+            // scan it instead of copy-pasting the long base64 blob.
+            const qrTarget = this._byId('mp-offer-qr');
+            if (qrTarget) qrTarget.innerHTML = generateQrSvg(offer, 3);
             this._setStatus('Send the offer to your friend, then paste their answer below.');
         } catch (err) {
             this._setStatus(`Failed to create offer: ${err.message || err}`);
@@ -132,6 +137,8 @@ export class MultiplayerLobby {
         try {
             const answer = await this.transport.acceptOfferAndAnswer(offer);
             this._byId('mp-answer-out').value = answer;
+            const qrTarget = this._byId('mp-answer-qr');
+            if (qrTarget) qrTarget.innerHTML = generateQrSvg(answer, 3);
             this._setStatus('Send this answer back to the host.');
         } catch (err) {
             this._setStatus(`Failed to accept offer: ${err.message || err}`);
@@ -206,6 +213,7 @@ const LOBBY_HTML = `
       <h3>1. Send this offer to your friend</h3>
       <textarea id="mp-offer-out" rows="4" readonly></textarea>
       <button id="mp-copy-offer" type="button">Copy offer</button>
+      <div id="mp-offer-qr" style="margin-top:8px"></div>
 
       <h3>2. Paste their answer here</h3>
       <textarea id="mp-answer-in" rows="4" placeholder="paste answer…"></textarea>
@@ -223,6 +231,7 @@ const LOBBY_HTML = `
       <h3>2. Send this answer back to the host</h3>
       <textarea id="mp-answer-out" rows="4" readonly></textarea>
       <button id="mp-copy-answer" type="button">Copy answer</button>
+      <div id="mp-answer-qr" style="margin-top:8px"></div>
     </div>
 
     <p id="mp-status" class="mp-status"></p>

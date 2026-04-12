@@ -8,8 +8,23 @@ import { audioManager } from './audio/audio_manager.js';
 import { initHotkeys } from './input/hotkeys.js';
 import { initInstallPrompt } from './pwa/install.js';
 import { initViewport } from './input/viewport.js';
+import { initTouchInput } from './input/touch_input.js';
 import { MultiplayerLobby } from './ui/multiplayer_lobby.js';
+import { lobbyBrowser } from './ui/lobby_browser.js';
 import { selectionHud } from './ui/selection_hud.js';
+import { chatWidget } from './ui/chat_widget.js';
+import { idleVillagerIndicator } from './ui/idle_villager_indicator.js';
+import { settingsMenu } from './ui/settings_menu.js';
+import { damageOverlay } from './ui/damage_text.js';
+import { latencyHud } from './ui/latency_hud.js';
+import { replayPanel } from './ui/replay_panel.js';
+import { fogRenderer } from './engine/fog_of_war.js';
+import { dayNightCycle } from './ui/day_night.js';
+import { selectionRingOverlay } from './ui/selection_ring.js';
+import { pauseOverlay } from './ui/pause_overlay.js';
+import { tutorial } from './ui/tutorial.js';
+import { loadReplay } from './engine/netplay/replay.js';
+import { ReplayTransport } from './engine/netplay/replay.js';
 import { PlayerDefinition } from './utils.js';
 
 
@@ -95,6 +110,8 @@ Sprites.ready.then(async function () {
 
     // Make sure the container actually tracks the viewport.
     initViewport(document.getElementById('container'));
+    // Touch / pinch / long-press for mobile devices.
+    initTouchInput(document.getElementById('container'));
 
     // Register the hotkey layer — it reads the latest engine state on demand
     // via window.game, so it works even before a match actually starts.
@@ -105,8 +122,40 @@ Sprites.ready.then(async function () {
     // for entering the multiplayer flow without having to refactor menu.js.
     mountMultiplayerButton(game);
 
-    // Mount the selection HUD overlay (stance / garrison / gate state).
+    // Mount every DOM overlay we ship: selection HUD, chat, idle villager
+    // indicator, damage numbers + low-HP health bars, and the netplay
+    // diagnostics HUD. They are all polling-based, no engine refactor.
     selectionHud.mount();
+    chatWidget.mount();
+    idleVillagerIndicator.mount();
+    damageOverlay.mount();
+    latencyHud.mount();
+    fogRenderer.mount();
+    dayNightCycle.mount();
+    selectionRingOverlay.mount();
+    pauseOverlay.mount();
+
+    // Auto-launch the tutorial if either the URL says so or this is the
+    // user's first ever visit.
+    const params2 = new URLSearchParams(location.search);
+    if (params2.get('tutorial') === '1' || (!tutorial.isCompleted() && params2.get('replay') == null)) {
+        // Defer until the engine has actually been instantiated by the
+        // menu navigator. The tutorial polls window.game so it can wait.
+        setTimeout(() => tutorial.start(), 2000);
+    }
+    // Expose the damage overlay so the engine's takeHit hook can find it
+    // without needing a circular import.
+    window.__damageOverlay = damageOverlay;
+
+    // Settings button next to the multiplayer button.
+    mountSettingsButton();
+    mountReplaysButton();
+
+    // If the URL carries `?replay=NAME`, boot directly into a saved
+    // replay instead of waiting for the user to pick a menu option.
+    const params = new URLSearchParams(location.search);
+    const replayName = params.get('replay');
+    if (replayName) bootReplay(game, replayName);
 
     // Begin preloading sound assets. Failures are non-fatal: if an asset is
     // missing the manager simply skips playing it.
@@ -129,6 +178,69 @@ Sprites.ready.then(async function () {
  * off the match by handing the existing menu navigator a fresh game
  * definition with the networking parameters baked in.
  */
+function mountReplaysButton() {
+    const btn = document.createElement('button');
+    btn.id = 'aoe-replays-btn';
+    btn.type = 'button';
+    btn.textContent = 'Replays';
+    btn.style.cssText = `
+        position: fixed; top: 16px; right: 240px; z-index: 800;
+        padding: 10px 16px; font-size: 14px; font-weight: bold;
+        background: #444; color: #fff;
+        border: 2px solid #888; border-radius: 6px; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    `;
+    btn.addEventListener('click', () => replayPanel.open());
+    document.body.appendChild(btn);
+}
+
+async function bootReplay(game, name) {
+    const snapshot = await loadReplay(name);
+    if (!snapshot) {
+        alert(`Replay "${name}" not found.`);
+        return;
+    }
+    const transport = new ReplayTransport(snapshot);
+    const definition = {
+        ...snapshot.gameDefinition,
+        networking: {
+            seed: snapshot.seed,
+            replayTransport: transport,
+            localPeerId: -1,             // spectate
+            peerIds: [-1],
+        },
+    };
+    // Patch the PlayerDefinition prototype back onto each player.
+    if (definition.players) {
+        definition.players = definition.players.map((p) => Object.assign(new PlayerDefinition(p.index, p.name, p.civ, p.color, p.team, p.is_cpu), p));
+    }
+    document.getElementById('mp-open-btn')?.style && (document.getElementById('mp-open-btn').style.display = 'none');
+    game.navigator.startGame(definition);
+}
+
+function mountSettingsButton() {
+    const btn = document.createElement('button');
+    btn.id = 'aoe-settings-btn';
+    btn.type = 'button';
+    btn.textContent = 'Settings';
+    btn.style.cssText = `
+        position: fixed; top: 16px; right: 144px; z-index: 800;
+        padding: 10px 16px; font-size: 14px; font-weight: bold;
+        background: #444; color: #fff;
+        border: 2px solid #888; border-radius: 6px; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    `;
+    btn.addEventListener('click', () => settingsMenu.open());
+    document.body.appendChild(btn);
+
+    // Esc opens settings during a match.
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && e.target?.tagName !== 'INPUT') {
+            settingsMenu.open();
+        }
+    });
+}
+
 function mountMultiplayerButton(game) {
     const btn = document.createElement('button');
     btn.id = 'mp-open-btn';
@@ -147,6 +259,22 @@ function mountMultiplayerButton(game) {
         onStart: (networking) => startMultiplayerMatch(game, networking),
     });
     btn.addEventListener('click', () => lobby.open());
+
+    // Server-browser button (relay-based room discovery).
+    const browseBtn = document.createElement('button');
+    browseBtn.id = 'lb-open-btn';
+    browseBtn.type = 'button';
+    browseBtn.textContent = 'Server Browser';
+    browseBtn.style.cssText = `
+        position: fixed; top: 16px; right: 360px; z-index: 800;
+        padding: 10px 16px; font-size: 14px; font-weight: bold;
+        background: #444; color: #fff;
+        border: 2px solid #888; border-radius: 6px; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    `;
+    document.body.appendChild(browseBtn);
+    lobbyBrowser.onJoin = (networking) => startMultiplayerMatch(game, networking);
+    browseBtn.addEventListener('click', () => lobbyBrowser.open());
 }
 
 function startMultiplayerMatch(game, networking) {

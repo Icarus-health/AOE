@@ -36,6 +36,11 @@ export const COMMANDS = {
     GARRISON:       10,
     FORMATION:      11,
     GATE_TOGGLE:    12,
+    CHAT:           13,
+    QUEUE_ORDER:    14,
+    TRIBUTE:        15,
+    DIPLOMACY:      16,
+    AUTO_QUEUE:     17,
 };
 
 const TURN_LENGTH_FRAMES = 4;     // 4 sim frames per "turn" (~9 turns/sec at 35 FPS)
@@ -75,10 +80,18 @@ export class CommandQueue {
 
     /** Queue a local command for the next available scheduling turn. */
     submit(command) {
+        // Spectators (peer id -1) cannot submit commands; their bundle
+        // is always empty so the simulation runs unchanged.
+        if (this.localPeerId < 0) return;
         const target = this.currentTurn + INPUT_DELAY_TURNS;
         command.turn = target;
         command.peerId = this.localPeerId;
         this.localBatch.push(command);
+    }
+
+    /** True if this client is just watching, not playing. */
+    isSpectator() {
+        return this.localPeerId < 0;
     }
 
     /** Local-only mode (single player) — drains commands instantly. */

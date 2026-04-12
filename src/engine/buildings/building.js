@@ -9,6 +9,10 @@ import { BigExplosion } from '../explosions.js';
 class Building extends Entity {
     constructor(subtile_x, subtile_y, player) {
         super(subtile_x, subtile_y, player);
+        // Marker so cosmetic systems (fog of war, minimap) can tell us
+        // apart from Units without an instanceof import that would create
+        // module-graph cycles.
+        this._isBuildingType = true;
         this.hp = 1;
         this.max_hp = Math.floor(this.MAX_HP[this.level] * player.attributeBonus[this.TYPE].hp_multiplier);
         this.construction_stage = 0;
@@ -118,6 +122,7 @@ class Building extends Entity {
     }
     takeHit(value, attacker, engine) {
         this.hp -= value;
+        if (engine && typeof engine._notifyHit === 'function') engine._notifyHit(this, value);
         if (this.isComplete) this.adjustFlames((this.max_hp - this.hp) / this.max_hp);
         if (this.hp <= 0) {
             this.hp = 0;

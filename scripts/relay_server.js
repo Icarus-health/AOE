@@ -28,13 +28,39 @@ try {
     process.exit(1);
 }
 
-const httpServer = createServer((_req, res) => {
+const rooms = new Map(); // room id -> Set<WebSocket>
+const roomMeta = new Map(); // room id -> { name, host, players, createdAt }
+
+const httpServer = createServer((req, res) => {
+    // CORS so a static-hosted PWA can poll us from a different origin.
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.url === '/rooms') {
+        // Lobby-browser endpoint: list every active room with its metadata.
+        const list = [];
+        for (const [id, set] of rooms.entries()) {
+            const meta = roomMeta.get(id) || {};
+            list.push({
+                id,
+                name: meta.name || id,
+                host: meta.host || 'unknown',
+                players: set.size,
+                maxPlayers: meta.maxPlayers || 4,
+                createdAt: meta.createdAt || 0,
+            });
+        }
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(list));
+        return;
+    }
+
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end('AoE PWA relay\n');
 });
 
 const wss = new WebSocketServer({ server: httpServer });
-const rooms = new Map(); // room id -> Set<WebSocket>
 
 wss.on('connection', (socket) => {
     let joinedRoom = null;
@@ -48,6 +74,15 @@ wss.on('connection', (socket) => {
             let set = rooms.get(joinedRoom);
             if (!set) { set = new Set(); rooms.set(joinedRoom, set); }
             set.add(socket);
+            // Capture room metadata from the first joiner.
+            if (!roomMeta.has(joinedRoom)) {
+                roomMeta.set(joinedRoom, {
+                    name: msg.roomName || joinedRoom,
+                    host: msg.hostName || 'host',
+                    maxPlayers: msg.maxPlayers || 4,
+                    createdAt: Date.now(),
+                });
+            }
             console.log(`[relay] peer ${msg.peerId} joined room ${joinedRoom} (size=${set.size})`);
             return;
         }
@@ -68,7 +103,10 @@ wss.on('connection', (socket) => {
         const set = rooms.get(joinedRoom);
         if (set) {
             set.delete(socket);
-            if (set.size === 0) rooms.delete(joinedRoom);
+            if (set.size === 0) {
+                rooms.delete(joinedRoom);
+                roomMeta.delete(joinedRoom);
+            }
         }
     });
 });

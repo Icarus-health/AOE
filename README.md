@@ -83,6 +83,41 @@ Lockstep WebRTC P2P with manual offer/answer signalling — no server
 required. Step-by-step walkthrough, troubleshooting and TURN/relay
 docs in `docs/MULTIPLAYER.md`.
 
+Additional multiplayer features:
+
+- **QR-code signalling** — host's offer / joiner's answer renders as a
+  QR code so phones can scan instead of pasting base64.
+- **Server browser** — optional WebSocket relay (`scripts/relay_server.js`)
+  exposes `/rooms` so peers can discover each other without copy-paste.
+- **Spectator mode** — replays boot with `localPeerId = -1`; the
+  spectator can never submit commands but sees the same simulation.
+- **Replay system** — every match is automatically recorded by the
+  `RecordingTransport`. Save via the in-game Replays button → IndexedDB.
+- **Pause overlay** — kicks in after 500 ms of stalled simulation so the
+  user knows the freeze is the network, not a crash.
+- **Latency HUD** — top-right network diagnostics during a real match.
+- **Determinism CI** — `tests/determinism.test.js` runs in GitHub Actions
+  on every push to guard against `Math.random()` regressions.
+
+## Single-player & UX features
+
+| Feature                | How                                                                          |
+|------------------------|------------------------------------------------------------------------------|
+| Tutorial               | Auto-launches on first visit; `?tutorial=1` to replay                        |
+| Settings menu          | Top-right "Settings" button or **Esc**                                       |
+| Save/Load replays      | "Replays" button → save current match, watch any saved replay                |
+| In-game chat           | Press **Enter** to focus the chat input (multiplayer only)                    |
+| Idle Villager indicator | Bottom-left counter; press **.** to jump to the next idle villager           |
+| Build queue            | Hold **Shift** while issuing orders to chain them (move → gather → return)   |
+| Damage numbers         | Toggleable in Settings; floats appear over hit entities                       |
+| Health bars            | Drawn over every damaged unit / building, not just the selected one          |
+| Fog of war             | Subtile-level visibility per player; toggleable via revealMap                |
+| Day/night cycle        | Cosmetic blue tint, toggleable in Settings                                   |
+| Animated selection ring | Pulsing yellow ring around the selected entity                              |
+| Touch / pinch / long-press | Mobile input adapter for the PWA on phones and tablets                  |
+| AI personalities       | Balanced / Rusher / Turtle / Boomer profiles with distinct build orders      |
+| Civ bonuses            | Greek / Egyptian / Babylonian / Asiatic — each with stat tweaks              |
+
 ## Quick start
 
 ```bash

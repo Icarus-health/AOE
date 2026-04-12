@@ -30,6 +30,7 @@ import { AIPlayer } from './ai/ai_player.js';
 import { audioManager } from '../audio/audio_manager.js';
 import { gameRandom, seedGameRandom } from './rng.js';
 import { CommandQueue, COMMANDS } from './netplay/command_queue.js';
+import { RecordingTransport } from './netplay/replay.js';
 import { garrisonUnit, ungarrisonAll, canGarrison, canBeGarrisoned } from './garrison.js';
 
 
@@ -81,10 +82,34 @@ class Engine {
         // mode and applies commands instantly; in multiplayer it gates the
         // simulation on receiving every peer's bundle for the current turn.
         const net = this.definition.networking || {};
+
+        // If no transport is supplied (single-player), wrap the local
+        // command flow in a RecordingTransport so the player can save the
+        // match as a replay afterwards. The recorder loops bundles back
+        // synchronously so the simulation never stalls.
+        let transport = net.transport ?? null;
+        if (!transport && !net.replayTransport) {
+            transport = new RecordingTransport(seed, this.definition);
+            this._recorder = transport;
+        } else if (net.replayTransport) {
+            transport = net.replayTransport;
+            this._isReplay = true;
+        } else if (transport && typeof transport.snapshot !== 'function' && net.record) {
+            // Multiplayer + record: leave the original transport in place
+            // but additionally tee bundles into a recorder.
+            const recorder = new RecordingTransport(seed, this.definition);
+            const origSend = transport.sendCommandBundle.bind(transport);
+            transport.sendCommandBundle = (turn, peerId, commands, checksum) => {
+                recorder.turns.push({ turn, peerId, commands: commands.map((c) => ({ ...c })), checksum });
+                origSend(turn, peerId, commands, checksum);
+            };
+            this._recorder = recorder;
+        }
+
         this.commandQueue = new CommandQueue({
             localPeerId: net.localPeerId ?? 0,
             peerIds: net.peerIds ?? [0],
-            transport: net.transport ?? null,
+            transport,
         });
         this.commandQueue.onCommandsApplied = (cb) => this.commandQueue.listeners.push(cb);
         this.commandQueue.onCommandsApplied((cmd, engine) => this._applyCommand(cmd, engine));
@@ -101,7 +126,10 @@ class Engine {
                 const difficulty = this.definition.map?.difficulty != null
                     ? AIPlayer.difficultyFromIndex(this.definition.map.difficulty)
                     : 'normal';
-                this.aiPlayers.push(new AIPlayer(this.players[i], this, difficulty));
+                // Optional personality override coming from the lobby — null
+                // falls back to the difficulty's default personality.
+                const personality = def.aiPersonality || null;
+                this.aiPlayers.push(new AIPlayer(this.players[i], this, difficulty, personality));
             }
         }
     }
@@ -169,6 +197,56 @@ class Engine {
                 }
                 break;
             }
+            case COMMANDS.CHAT: {
+                // Append to a shared in-engine chat log. The DOM chat
+                // widget polls window.game.navigator.gameViewer.engine.chatLog
+                // and renders new entries.
+                if (!this.chatLog) this.chatLog = [];
+                this.chatLog.push({
+                    turn: this.framesCount,
+                    playerIndex: cmd.playerIndex,
+                    playerName: this.players[cmd.playerIndex]?.name || `Player ${cmd.playerIndex}`,
+                    text: String(cmd.text || '').slice(0, 200),
+                });
+                if (this.chatLog.length > 200) this.chatLog.shift();
+                break;
+            }
+            case COMMANDS.AUTO_QUEUE: {
+                // Toggle the per-building "produce villagers continuously"
+                // flag. Read by Engine.processBuildings.
+                if (subject) subject.autoQueue = !!cmd.enabled;
+                break;
+            }
+            case COMMANDS.TRIBUTE: {
+                // Send a fixed amount of one resource from playerIndex to
+                // cmd.toIndex. 10% market tax.
+                const from = this.players[cmd.playerIndex];
+                const to = this.players[cmd.toIndex];
+                const res = cmd.resource;
+                const amount = Math.max(0, Math.floor(cmd.amount || 0));
+                if (from && to && res && amount > 0 && (from.resources[res] || 0) >= amount) {
+                    from.resources[res] -= amount;
+                    to.resources[res] += Math.floor(amount * 0.9);
+                }
+                break;
+            }
+            case COMMANDS.DIPLOMACY: {
+                // Set the diplomatic stance from playerIndex toward cmd.toIndex.
+                // 0 = ally, 1 = neutral, 2 = enemy.
+                if (!player.diplomacy) player.diplomacy = {};
+                player.diplomacy[cmd.toIndex] = cmd.stance;
+                break;
+            }
+            case COMMANDS.QUEUE_ORDER: {
+                // Append a queued order to a unit's order stack instead
+                // of executing immediately. Read by Unit.afterPath in
+                // build_queue.js.
+                if (subject) {
+                    if (!subject.orderQueue) subject.orderQueue = [];
+                    subject.orderQueue.push(cmd.order);
+                }
+                break;
+            }
             case COMMANDS.NOOP:
             default:
                 break;
@@ -182,6 +260,22 @@ class Engine {
     /** Public API for game-side modules (UI, AI) to enqueue a command. */
     submitCommand(command) {
         this.commandQueue.submit(command);
+    }
+    /**
+     * Cosmetic hook fired when an entity takes damage. Called by the
+     * unit / building takeHit() methods. The default implementation
+     * forwards to the global damage overlay; tests can override it.
+     */
+    _notifyHit(entity, value) {
+        if (typeof window === 'undefined' || !window.__damageOverlay) return;
+        try {
+            const viewer = this.viewer;
+            if (!viewer || !viewer.viewPort || !viewer.mapDrawable) return;
+            const screen = viewer.mapDrawable.tileCoordsToScreen(entity.subtile_x / 2, entity.subtile_y / 2);
+            const x = screen.x - viewer.viewPort.x;
+            const y = screen.y - viewer.viewPort.y - 24;
+            window.__damageOverlay.spawn(x, y, `-${Math.round(value)}`);
+        } catch (err) { /* ignore */ }
     }
     processUnits() {
         for (let entity of this.units) {

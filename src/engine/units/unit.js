@@ -184,6 +184,10 @@ class Unit extends Entity {
     takeHit(value, attacker, engine) {
         // take into account armour etc
         this.hp -= value;
+        // Notify the damage overlay (DOM HUD) so it can spawn a floating
+        // number above the victim. The hook is purely cosmetic so it is
+        // safe to skip in tests / headless replays.
+        if (engine && typeof engine._notifyHit === 'function') engine._notifyHit(this, value);
         if (this.hp <= 0) {
             this.hp = 0;
             this.frame = 0;
@@ -196,7 +200,22 @@ class Unit extends Entity {
     }
     afterStep() {
     }
-    afterPath() {
+    afterPath(engine) {
+        // Build-queue support: when an order finishes (we just arrived at
+        // our destination) pop the next queued order and dispatch it. This
+        // gives players the AoE2 "shift-click" experience where multiple
+        // orders chain automatically.
+        if (this.orderQueue && this.orderQueue.length > 0 && engine) {
+            const next = this.orderQueue.shift();
+            try {
+                if (next.type === 'move' && next.point) {
+                    engine.moveOrder(this, next.point);
+                } else if (next.type === 'interact' && next.targetId != null) {
+                    const target = engine._findEntity(next.targetId);
+                    if (target) engine.interactOrder(this, target);
+                }
+            } catch (err) { /* ignore */ }
+        }
     }
     afterMoveOrder() {
     }
