@@ -1,5 +1,10 @@
 import { Sprites } from './sprites.js';
 import './graphics/graphics.js';
+// Phase 1 renderer abstraction. Currently a thin shim around the canvas
+// renderer; the PixiJS migration will swap the implementation in Phase 4.
+// Imported here so the bootstrap order matches the engine's window.Graphics
+// expectations and `getRenderer()` is callable from anywhere.
+import { getRenderer } from './graphics/renderer.js';
 import { MenuNavigator } from './navigator.js';
 import { TestRunner } from './tests/runner.js';
 import './magic.js';
@@ -38,7 +43,9 @@ class Game {
         this.stage_width = w;
         this.stage_height = h;
 
-        this.stage = new Graphics.Stage({
+        const renderer = getRenderer();
+        this.renderer = renderer;
+        this.stage = renderer.createStage({
             container: container,
             width: this.stage_width,
             height: this.stage_height

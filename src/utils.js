@@ -49,22 +49,40 @@ const PLAYER_COLORS = [
 ];
 
 
+// Medieval civilisation roster — modelled after Age of Empires 2.
+// IDs 0..3 keep their old slots so existing saves and the AI's hard-coded
+// civ indices remain valid; IDs 4..7 are the medieval newcomers.
+//
+// The string labels are the *display names*. The dual int↔string lookup
+// table is used by the lobby UI and replay header.
 const CIVILIZATIONS = {
-    GREEK: 0,
-    EGYPTIAN: 1,
-    BABYLONIAN: 2,
-    ASIATIC: 3,
-    0: "Greek",
-    1: "Egyptian",
-    2: "Babylonian",
-    3: "Asiatic",
-    length: 4
+    BRITONS: 0,
+    FRANKS: 1,
+    BYZANTINES: 2,
+    GOTHS: 3,
+    SARACENS: 4,
+    VIKINGS: 5,
+    TEUTONS: 6,
+    MONGOLS: 7,
+    0: "Britons",
+    1: "Franks",
+    2: "Byzantines",
+    3: "Goths",
+    4: "Saracens",
+    5: "Vikings",
+    6: "Teutons",
+    7: "Mongols",
+    length: 8
 }
 const CIVILIZATIONS_NAMES = [
-    "Greek",
-    "Egyptian",
-    "Babylonian",
-    "Asiatic"
+    "Britons",
+    "Franks",
+    "Byzantines",
+    "Goths",
+    "Saracens",
+    "Vikings",
+    "Teutons",
+    "Mongols"
 ];
 
 const AGES = {

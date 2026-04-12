@@ -18,6 +18,10 @@ class Player {
         this.units = [];
         this.buildings = [];
         this.possessions = {};
+        // AoE2 QoL: when a farm is exhausted, automatically pay the wood
+        // cost and refill the same tile so the farmer never goes idle.
+        // Toggleable from the in-game settings menu.
+        this.autoReseedFarms = true;
         this.defaultEntityLevel = {
             Tower: 0,
             Wall: 0
@@ -50,6 +54,7 @@ class Player {
             GoldMineInteraction: 0,
             StoneMineInteraction: 0,
             FisherInteraction: 0,
+            HunterInteraction: 0,
             ButcherInteraction: 0,
             FishingInteraction: 0,
             ConversionInteraction: 0

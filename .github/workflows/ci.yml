@@ -38,6 +38,12 @@ jobs:
       - name: Determinism test (RNG cross-check)
         run: node tests/determinism.test.js
 
+      - name: Civilizations test
+        run: node tests/civilizations.test.js
+
+      - name: Farm auto-reseed test
+        run: node tests/farm_auto_reseed.test.js
+
   determinism:
     runs-on: ubuntu-latest
     needs: build
@@ -47,3 +53,5 @@ jobs:
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
       - run: node tests/determinism.test.js
+      - run: node tests/civilizations.test.js
+      - run: node tests/farm_auto_reseed.test.js

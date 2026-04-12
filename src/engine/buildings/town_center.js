@@ -26,7 +26,12 @@ class TownCenter extends Building {
             Actions.RecruitUnitFactory(Villager),
             Technologies.ToolAge,
             Technologies.BronzeAge,
-            Technologies.IronAge
+            Technologies.IronAge,
+            // AoE2 quality-of-life upgrades. The static `isVisible` on each
+            // tech keeps them hidden until prerequisites are met.
+            Technologies.Loom,
+            Technologies.Wheelbarrow,
+            Technologies.HandCart
         ]; else return null;
     }
     acceptsResource(type) {
