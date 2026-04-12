@@ -120,8 +120,11 @@ Spear.prototype.IMAGE_OFFSETS = { x: 25, y: 9 };
 class Arrow extends LinearProjectile {
     constructor(thrower, victim, position, target, subtile_x, subtile_y) {
         super(thrower, victim, position, target, subtile_x, subtile_y);
+        // Garrison bonus contribution from sheltering archers (set on the
+        // thrower by the garrison module). 0 for non-garrison-capable units.
+        const garrison = (thrower.attributes && thrower.attributes.garrisonBonus) || 0;
         this.attributes = {
-            attack: thrower.attributes.attack
+            attack: thrower.attributes.attack + garrison
         };
     }
 }

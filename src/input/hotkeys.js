@@ -1,6 +1,8 @@
 import { audioManager } from '../audio/audio_manager.js';
 import { COMMANDS } from '../engine/netplay/command_queue.js';
-import { STANCES } from '../engine/stances.js';
+import { STANCES, STANCE_NAMES } from '../engine/stances.js';
+import { FORMATIONS, computeFormationTargets } from '../engine/formations.js';
+import { selectionHud } from '../ui/selection_hud.js';
 
 /**
  * Simple hotkey layer — bound on window.keydown.
@@ -60,6 +62,62 @@ export function initHotkeys(game) {
             case 'F3': submitStance(engine, STANCES.STAND_GROUND); e.preventDefault(); break;
             case 'F4': submitStance(engine, STANCES.NO_ATTACK);    e.preventDefault(); break;
 
+            // ---------- patrol (P) ----------
+            case 'KeyP':
+                if (engine && engine.selectedEntity && engine.selectedEntity.netId != null) {
+                    armPatrolMode(engine);
+                }
+                break;
+
+            // ---------- cycle formation (Shift+F) ----------
+            case 'KeyF':
+                if (e.shiftKey) {
+                    cycleFormation(engine);
+                    e.preventDefault();
+                }
+                break;
+
+            // ---------- toggle a selected gate ----------
+            case 'KeyO': {
+                if (engine && engine.selectedEntity && engine.selectedEntity.constructor.name === 'Gate') {
+                    engine.submitCommand({
+                        type: COMMANDS.GATE_TOGGLE,
+                        playerIndex: engine.current_player.index,
+                        subjectId: engine.selectedEntity.netId,
+                    });
+                    audioManager.play('click');
+                }
+                break;
+            }
+
+            // ---------- garrison / ungarrison ----------
+            case 'KeyG': {
+                // If a unit is selected, garrison it into the nearest
+                // friendly Tower / TownCenter. If a tower or town center
+                // is selected instead, ungarrison everything inside.
+                if (!engine || !engine.selectedEntity) break;
+                const ent = engine.selectedEntity;
+                if (ent.constructor && (ent.constructor.name === 'Tower' || ent.constructor.name === 'TownCenter')) {
+                    engine.submitCommand({
+                        type: COMMANDS.UNGARRISON,
+                        playerIndex: engine.current_player.index,
+                        subjectId: ent.netId,
+                    });
+                } else if (ent.netId != null) {
+                    const target = findNearestGarrisonHost(engine, ent);
+                    if (target) {
+                        engine.submitCommand({
+                            type: COMMANDS.GARRISON,
+                            playerIndex: engine.current_player.index,
+                            subjectId: ent.netId,
+                            targetId: target.netId,
+                        });
+                        audioManager.play('build', { volume: 0.4 });
+                    }
+                }
+                break;
+            }
+
             // ---------- town bell — recall every villager ----------
             case 'Backquote':
                 if (engine && engine.current_player) {
@@ -116,6 +174,68 @@ function getEngine(game) {
 
 function getViewer(game) {
     return game?.navigator?.gameViewer || null;
+}
+
+// Patrol mode: when armed, the next left-click on the map issues a patrol
+// command to the selected unit. We capture the click via a one-shot
+// listener attached to the document so it works regardless of which UI
+// layer the click hits first.
+let patrolArmed = false;
+function armPatrolMode(engine) {
+    if (patrolArmed) return;
+    patrolArmed = true;
+    audioManager.play('click');
+    const onClick = (clickEvent) => {
+        patrolArmed = false;
+        document.removeEventListener('mousedown', onClick, true);
+        // Convert pixel coords into the engine's subtile system via the
+        // viewer's mapDrawable helper, if available.
+        const viewer = engine.viewer;
+        if (!viewer || !viewer.mapDrawable) return;
+        const rect = viewer.stage.container.getBoundingClientRect();
+        const x = clickEvent.clientX - rect.left;
+        const y = clickEvent.clientY - rect.top;
+        let sub;
+        try {
+            sub = viewer.mapDrawable.screenCoordsToSubtile(x + viewer.viewPort.x, y + viewer.viewPort.y);
+        } catch (err) { return; }
+        if (!sub) return;
+        engine.submitCommand({
+            type: COMMANDS.PATROL,
+            playerIndex: engine.current_player.index,
+            subjectId: engine.selectedEntity.netId,
+            point: { x: sub.x, y: sub.y },
+        });
+    };
+    document.addEventListener('mousedown', onClick, true);
+}
+
+const FORMATION_ORDER = [FORMATIONS.BOX, FORMATIONS.LINE, FORMATIONS.FLANK];
+let _formationIdx = 0;
+function cycleFormation(engine) {
+    _formationIdx = (_formationIdx + 1) % FORMATION_ORDER.length;
+    selectionHud.setFormation(FORMATION_ORDER[_formationIdx]);
+    audioManager.play('click');
+    // The chosen formation is read by the next group move order — see the
+    // viewer's selection-rectangle move handler. We expose it on a global
+    // namespace because the original viewer.js does not import this module.
+    window.__aoeSelectedFormation = FORMATION_ORDER[_formationIdx];
+}
+
+function findNearestGarrisonHost(engine, unit) {
+    if (!engine.buildings) return null;
+    let best = null;
+    let bestDist = Infinity;
+    for (const b of engine.buildings) {
+        if (b.destroyed || b.player !== unit.player) continue;
+        const name = b.constructor && b.constructor.name;
+        if (name !== 'Tower' && name !== 'TownCenter') continue;
+        const dx = (b.subtile_x ?? 0) - (unit.subtile_x ?? 0);
+        const dy = (b.subtile_y ?? 0) - (unit.subtile_y ?? 0);
+        const d = Math.abs(dx) + Math.abs(dy);
+        if (d < bestDist) { bestDist = d; best = b; }
+    }
+    return best;
 }
 
 function submitStance(engine, stance) {

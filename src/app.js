@@ -9,6 +9,7 @@ import { initHotkeys } from './input/hotkeys.js';
 import { initInstallPrompt } from './pwa/install.js';
 import { initViewport } from './input/viewport.js';
 import { MultiplayerLobby } from './ui/multiplayer_lobby.js';
+import { selectionHud } from './ui/selection_hud.js';
 import { PlayerDefinition } from './utils.js';
 
 
@@ -103,6 +104,9 @@ Sprites.ready.then(async function () {
     // layer main menu lives on a canvas, so we overlay a simple HTML button
     // for entering the multiplayer flow without having to refactor menu.js.
     mountMultiplayerButton(game);
+
+    // Mount the selection HUD overlay (stance / garrison / gate state).
+    selectionHud.mount();
 
     // Begin preloading sound assets. Failures are non-fatal: if an asset is
     // missing the manager simply skips playing it.

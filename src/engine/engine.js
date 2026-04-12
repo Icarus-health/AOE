@@ -30,6 +30,7 @@ import { AIPlayer } from './ai/ai_player.js';
 import { audioManager } from '../audio/audio_manager.js';
 import { gameRandom, seedGameRandom } from './rng.js';
 import { CommandQueue, COMMANDS } from './netplay/command_queue.js';
+import { garrisonUnit, ungarrisonAll, canGarrison, canBeGarrisoned } from './garrison.js';
 
 
 class Engine {
@@ -138,6 +139,20 @@ class Engine {
                     this.moveOrder(subject, cmd.point);
                 }
                 break;
+            case COMMANDS.GATE_TOGGLE: {
+                if (subject && typeof subject.toggleGate === 'function') subject.toggleGate(this);
+                break;
+            }
+            case COMMANDS.GARRISON: {
+                if (subject && target && canBeGarrisoned(subject) && canGarrison(target)) {
+                    garrisonUnit(this, subject, target);
+                }
+                break;
+            }
+            case COMMANDS.UNGARRISON: {
+                if (subject && canGarrison(subject)) ungarrisonAll(this, subject);
+                break;
+            }
             case COMMANDS.TOWN_BELL: {
                 // Recall every villager of the issuing player to their
                 // nearest town center. AoE2-style emergency bell.

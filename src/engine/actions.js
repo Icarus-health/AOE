@@ -14,6 +14,7 @@ import { Temple } from './buildings/temple.js';
 import { Tower } from './buildings/tower.js';
 import { Wall } from './buildings/wall.js';
 import { House } from './buildings/house.js';
+import { Gate } from './buildings/gate.js';
 import { Unit } from './units/unit.js';
 import { RESOURCE_TYPES, RESOURCE_NAME, rand_choice } from '../utils.js';
 import { Sprites } from '../sprites.js';
@@ -153,6 +154,7 @@ NextBuildingsPage.prototype.ACTIONS = [
     CreateBuildingFactory(TownCenter),
     CreateBuildingFactory(SiegeWorkshop),
     CreateBuildingFactory(Academy),
+    CreateBuildingFactory(Gate),
     PreviousPage,
     FirstPage,
 ];

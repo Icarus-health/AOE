@@ -35,6 +35,7 @@ export const COMMANDS = {
     UNGARRISON:     9,
     GARRISON:       10,
     FORMATION:      11,
+    GATE_TOGGLE:    12,
 };
 
 const TURN_LENGTH_FRAMES = 4;     // 4 sim frames per "turn" (~9 turns/sec at 35 FPS)

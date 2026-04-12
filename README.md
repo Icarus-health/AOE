@@ -65,12 +65,23 @@ fires `console.error('[netplay] DESYNC at turn ...')` if peers disagree.
 
 ## AoE2-style gameplay
 
+See `docs/HOTKEYS.md` for the full key reference.
+
 | Feature       | How to use                                                                       |
 |---------------|----------------------------------------------------------------------------------|
-| Stances       | Select a unit, press **F1** (aggressive), **F2** (defensive), **F3** (stand ground), **F4** (no attack) |
-| Town Bell     | Press the backtick key (**`** `) to recall every villager to the nearest Town Center |
-| Patrol        | Wired through `COMMANDS.PATROL` — issue from code via `engine.submitCommand(...)` |
-| Formations    | `computeFormationTargets(units, center, FORMATIONS.BOX)` from `src/engine/formations.js` |
+| Stances       | Select unit → **F1** Aggressive / **F2** Defensive / **F3** Stand Ground / **F4** No Attack |
+| Patrol        | Select unit → **P** → click destination on the map                              |
+| Formations    | **Shift+F** cycles Box → Line → Flank for the next group move                   |
+| Garrison      | Select unit → **G** to garrison into nearest Tower / Town Center                 |
+| Ungarrison    | Select Tower / Town Center → **G** to release everyone                           |
+| Town Bell     | Press backtick (**`** `) to recall every villager to the nearest Town Center     |
+| Gate          | Build via villager build menu page 2; select gate → **O** to toggle open/closed  |
+
+## Multiplayer
+
+Lockstep WebRTC P2P with manual offer/answer signalling — no server
+required. Step-by-step walkthrough, troubleshooting and TURN/relay
+docs in `docs/MULTIPLAYER.md`.
 
 ## Quick start
 

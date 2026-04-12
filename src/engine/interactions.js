@@ -553,7 +553,15 @@ class TowerAttackInteraction extends BaseAttackInteraction {
         } else if (this.passive.destroyed || this.passive.hp <= 0 || this.passive.player == this.active.player) {
             this.terminate();
         } else if (this.active.ticks_waited == this.active.ATTACK_RATE) {
+            // Garrisoned archers buff the tower's attack and let it fire
+            // an extra arrow per stack (modelled as additional projectiles
+            // launched on the same tick).
+            const bonus = (this.active.attributes && this.active.attributes.garrisonBonus) || 0;
             this.engine.makeProjectile(this.active.getProjectileType(), this.active, this.passive);
+            const extraArrows = Math.min(3, Math.floor(bonus / 4));
+            for (let i = 0; i < extraArrows; i++) {
+                this.engine.makeProjectile(this.active.getProjectileType(), this.active, this.passive);
+            }
         } else if (this.active.ticks_waited > this.active.ATTACK_RATE) {
             this.active.lastShot = this.engine.framesCount;
             this.engine.interactImmediately(this.active, this.passive);
