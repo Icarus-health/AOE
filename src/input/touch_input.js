@@ -20,6 +20,8 @@
  * existing mouse handlers, so desktop users see no difference.
  */
 
+import { openActionWheel, closeActionWheel, isActionWheelOpen, isTouchDevice } from '../ui/action_wheel.js';
+
 const LONG_PRESS_MS = 500;
 const TAP_SLOP = 12;            // px movement allowed before a touch is no longer a "tap"
 const PAN_FRICTION = 1;
@@ -27,6 +29,10 @@ const PAN_FRICTION = 1;
 export function initTouchInput(container) {
     if (!container) return;
     if (typeof window.TouchEvent === 'undefined') return;
+    // Whether to use the radial action wheel for long-press instead of
+    // dispatching a synthetic right-click. Phones-only by default; can
+    // be flipped via the in-game settings menu (Phase 2).
+    const useActionWheel = isTouchDevice();
 
     let pressTimer = null;
     let startX = 0, startY = 0;
@@ -58,11 +64,19 @@ export function initTouchInput(container) {
             startX = t.clientX;
             startY = t.clientY;
             moved = false;
-            // Schedule a long-press → right click. Cancelled if the user
-            // moves too far or lifts before the timer fires.
+            // Schedule a long-press. On touch devices we open the radial
+            // action wheel — way more usable on a phone than a tiny
+            // right-click context menu. On desktop (laptops with touch
+            // screens running on a mouse-driven UI) we keep the legacy
+            // synthetic right-click.
             pressTimer = setTimeout(() => {
-                dispatchMouse('mousedown', t, 2);
-                dispatchMouse('mouseup', t, 2);
+                if (useActionWheel) {
+                    if (isActionWheelOpen()) closeActionWheel();
+                    openActionWheel(t.clientX, t.clientY);
+                } else {
+                    dispatchMouse('mousedown', t, 2);
+                    dispatchMouse('mouseup', t, 2);
+                }
                 pressTimer = null;
             }, LONG_PRESS_MS);
             // Mirror the touch as a mousemove so the engine's hover

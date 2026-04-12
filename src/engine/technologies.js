@@ -983,6 +983,107 @@ IronAge.prototype.COST = {
 }
 
 
+// ----------------------------------------------------------------------
+// AoE2 quality-of-life techs (Loom, Wheelbarrow, Hand Cart).
+//
+// They live in the Town Center research panel and stack with everything
+// else. Loom is available immediately so the player can do it before any
+// scout aggression. Wheelbarrow gates on Tool Age, Hand Cart on Bronze.
+//
+// Vikings get Wheelbarrow + Hand Cart for free (see civilizations.js); the
+// `_civFreeCarts` flag is honoured at game start by the engine. Until that
+// auto-research is wired up the techs simply remain a free click away.
+// ----------------------------------------------------------------------
+
+class Loom extends Technology {
+    static isVisible(entity) {
+        return !entity.player.possessions.Loom;
+    }
+    finalize() {
+        // +15 max HP for every existing villager and a multiplier bump on
+        // the villager type so freshly trained ones inherit the bonus too.
+        const HP_BONUS = 15;
+        const baseHP = 25; // Villager.prototype.MAX_HP[0]
+        const newHpMultiplier = (baseHP + HP_BONUS) / baseHP;
+        // Multiply rather than overwrite so it composes with civ bonuses.
+        this.player.attributeBonus.villager.hp_multiplier *= newHpMultiplier;
+        for (const unit of this.player.units) {
+            if (!unit.wasConverted && unit.constructor.name === "Villager") {
+                unit.max_hp += HP_BONUS;
+                unit.hp += HP_BONUS;
+            }
+        }
+        super.finalize();
+        return true;
+    }
+}
+Loom.prototype.IMAGE = Sprites.Sprite("img/interface/technologies/loom.png");
+Loom.prototype.TOOLTIP = "Research Loom: Villagers +15 HP, +1/+2 armour.";
+Loom.prototype.TIME = 25 * FPS;
+Loom.prototype.POS = {
+    x: (Action.prototype.SIZE + Action.prototype.MARGIN * 2) * 1 + Action.prototype.MARGIN,
+    y: Action.prototype.MARGIN
+}
+Loom.prototype.COST = {
+    food: 0, wood: 0, stone: 0, gold: 50
+}
+
+
+class Wheelbarrow extends Technology {
+    static isVisible(entity) {
+        return entity.player.possessions.ToolAge && !entity.player.possessions.Wheelbarrow;
+    }
+    finalize() {
+        // +25% carry capacity, +10% movement speed for villagers.
+        this.player.attributeBonus.villager.capacity.food += 3;
+        this.player.attributeBonus.villager.capacity.wood += 3;
+        this.player.attributeBonus.villager.capacity.stone += 3;
+        this.player.attributeBonus.villager.capacity.gold += 3;
+        this.player.attributeBonus.villager.speed += 0.1;
+        super.finalize();
+        return true;
+    }
+}
+Wheelbarrow.prototype.IMAGE = Sprites.Sprite("img/interface/technologies/wheelbarrow.png");
+Wheelbarrow.prototype.TOOLTIP = "Research Wheelbarrow: Villagers carry +3 of every resource and walk +10% faster.";
+Wheelbarrow.prototype.TIME = 75 * FPS;
+Wheelbarrow.prototype.POS = {
+    x: (Action.prototype.SIZE + Action.prototype.MARGIN * 2) * 2 + Action.prototype.MARGIN,
+    y: Action.prototype.MARGIN
+}
+Wheelbarrow.prototype.COST = {
+    food: 175, wood: 50, stone: 0, gold: 0
+}
+
+
+class HandCart extends Technology {
+    static isVisible(entity) {
+        return entity.player.possessions.BronzeAge &&
+               entity.player.possessions.Wheelbarrow &&
+               !entity.player.possessions.HandCart;
+    }
+    finalize() {
+        this.player.attributeBonus.villager.capacity.food += 5;
+        this.player.attributeBonus.villager.capacity.wood += 5;
+        this.player.attributeBonus.villager.capacity.stone += 5;
+        this.player.attributeBonus.villager.capacity.gold += 5;
+        this.player.attributeBonus.villager.speed += 0.1;
+        super.finalize();
+        return true;
+    }
+}
+HandCart.prototype.IMAGE = Sprites.Sprite("img/interface/technologies/hand_cart.png");
+HandCart.prototype.TOOLTIP = "Research Hand Cart: Villagers carry +5 more of every resource and walk +10% faster again.";
+HandCart.prototype.TIME = 55 * FPS;
+HandCart.prototype.POS = {
+    x: (Action.prototype.SIZE + Action.prototype.MARGIN * 2) * 3 + Action.prototype.MARGIN,
+    y: Action.prototype.MARGIN
+}
+HandCart.prototype.COST = {
+    food: 300, wood: 200, stone: 0, gold: 0
+}
+
+
 const Technologies = {
     Technology,
 
@@ -1026,9 +1127,14 @@ const Technologies = {
 
     IronAge,
 
+    Loom,
+    Wheelbarrow,
+    HandCart,
+
     TechByAge: [
         [
-            ToolAge
+            ToolAge,
+            Loom
         ],
         [
             BattleAxe,
@@ -1043,6 +1149,7 @@ const Technologies = {
             SmallWall,
             WatchTower,
             BronzeAge,
+            Wheelbarrow,
         ],
         [
             Artisanship,
@@ -1069,6 +1176,7 @@ const Technologies = {
             Mysticism,
             Polytheism,
             IronAge,
+            HandCart,
         ],
         []
     ]

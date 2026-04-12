@@ -6,6 +6,14 @@ The original project ships ~13k lines of vanilla ES6/7 with a hand-rolled
 Canvas renderer; this repository wraps it in a Vite toolchain, adds a CPU
 opponent, sound effects, hotkeys and offline support.
 
+> **Roadmap:** the long-term goal is to bring the gameplay as close to
+> **Age of Empires 2** as possible — with a medieval roster, modern UI/UX,
+> WebGL graphics and full mobile support. Phase 1 (foundation re-theme)
+> has landed: medieval civilisation set, AoE2 quality-of-life techs
+> (Loom / Wheelbarrow / Hand Cart), auto-reseed farms, mobile action
+> wheel and a renderer-abstraction layer ready for the PixiJS migration.
+> See [`docs/ROADMAP_AOE2.md`](docs/ROADMAP_AOE2.md) for the full plan.
+
 ## What's new
 
 | Area               | Module                                       | Description                                                                |
@@ -116,7 +124,11 @@ Additional multiplayer features:
 | Animated selection ring | Pulsing yellow ring around the selected entity                              |
 | Touch / pinch / long-press | Mobile input adapter for the PWA on phones and tablets                  |
 | AI personalities       | Balanced / Rusher / Turtle / Boomer profiles with distinct build orders      |
-| Civ bonuses            | Greek / Egyptian / Babylonian / Asiatic — each with stat tweaks              |
+| Civ bonuses            | Britons / Franks / Byzantines / Goths / Saracens / Vikings / Teutons / Mongols — AoE2 medieval roster |
+| Auto-reseed farms      | Exhausted farms refill themselves while wood is available (Player setting)   |
+| Loom / Wheelbarrow / Hand Cart | AoE2 quality-of-life techs at the Town Center                       |
+| Mobile action wheel    | Long-press on touch devices opens a radial context menu                      |
+| Renderer abstraction   | `src/graphics/renderer.js` — feature flag to swap canvas → PixiJS in Phase 4 |
 
 ## Quick start
 

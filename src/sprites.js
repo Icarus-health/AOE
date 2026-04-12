@@ -109,6 +109,19 @@ const Sprites = {
         let canvas = document.createElement("canvas");
         this.ready.then(() => {
             let img = this.cache[path];
+            if (!img) {
+                // Asset not bundled — fall back to a 1x1 transparent canvas
+                // so the rest of the UI keeps working. We log once per
+                // missing path so devs notice during build.
+                if (!Sprites._missingLogged) Sprites._missingLogged = new Set();
+                if (!Sprites._missingLogged.has(path)) {
+                    Sprites._missingLogged.add(path);
+                    console.warn(`[sprites] missing asset: ${path}`);
+                }
+                canvas.width = 1;
+                canvas.height = 1;
+                return canvas;
+            }
             canvas.width = img.width;
             canvas.height = img.height;
             let ctx = canvas.getContext("2d");
