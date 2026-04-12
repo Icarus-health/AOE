@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "bundle-images": "python3 scripts/bundle_images.py public/img public/gfx.bin public/gfx.json --strip-prefix public/"
+    "bundle-images": "python3 scripts/bundle_images.py public/img public/gfx.bin public/gfx.json --strip-prefix public/",
+    "generate-sounds": "python3 scripts/generate_sounds.py"
   },
   "devDependencies": {
     "vite": "^5.4.0",

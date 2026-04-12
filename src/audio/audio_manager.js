@@ -12,29 +12,29 @@
 
 export const SOUNDS = {
     // UI
-    click:             '/audio/ui/click.mp3',
-    error:             '/audio/ui/error.mp3',
+    click:             '/audio/ui/click.wav',
+    error:             '/audio/ui/error.wav',
 
     // Unit selection / movement
-    villager_select:   '/audio/units/villager_select.mp3',
-    villager_move:     '/audio/units/villager_move.mp3',
-    military_select:   '/audio/units/military_select.mp3',
-    military_move:     '/audio/units/military_move.mp3',
+    villager_select:   '/audio/units/villager_select.wav',
+    villager_move:     '/audio/units/villager_move.wav',
+    military_select:   '/audio/units/military_select.wav',
+    military_move:     '/audio/units/military_move.wav',
 
     // Villager actions
-    chop_wood:         '/audio/actions/chop.mp3',
-    mine:              '/audio/actions/mine.mp3',
-    forage:            '/audio/actions/forage.mp3',
-    build:             '/audio/actions/build.mp3',
-    attack:            '/audio/actions/attack.mp3',
+    chop_wood:         '/audio/actions/chop.wav',
+    mine:              '/audio/actions/mine.wav',
+    forage:            '/audio/actions/forage.wav',
+    build:             '/audio/actions/build.wav',
+    attack:            '/audio/actions/attack.wav',
 
     // Buildings
-    building_complete: '/audio/buildings/complete.mp3',
-    building_destroy:  '/audio/buildings/destroy.mp3',
+    building_complete: '/audio/buildings/complete.wav',
+    building_destroy:  '/audio/buildings/destroy.wav',
 
     // Music
-    music_peace:       '/audio/music/peace.mp3',
-    music_battle:      '/audio/music/battle.mp3',
+    music_peace:       '/audio/music/peace.wav',
+    music_battle:      '/audio/music/battle.wav',
 };
 
 
