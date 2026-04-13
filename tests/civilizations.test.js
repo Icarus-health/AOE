@@ -40,6 +40,13 @@ function makePlayer(civId) {
             HunterInteraction: 0, ButcherInteraction: 0, FishingInteraction: 0,
             ConversionInteraction: 0,
         },
+        interactionMultiplier: {
+            BuilderInteraction: 1, RepairInteraction: 1, ShipRepairInteraction: 1,
+            FarmingInteraction: 1, ChopInteraction: 1, ForageInteraction: 1,
+            GoldMineInteraction: 1, StoneMineInteraction: 1, FisherInteraction: 1,
+            HunterInteraction: 1, ButcherInteraction: 1, FishingInteraction: 1,
+            ConversionInteraction: 1,
+        },
     };
 }
 
@@ -71,8 +78,25 @@ for (let civId = 0; civId < 8; civId++) {
         p.attributeBonus.farm.food !== 0 ||
         p.attributeBonus.ship.hp_multiplier !== 1 ||
         Object.values(p.interactionBonus).some(v => v !== 0) ||
+        Object.values(p.interactionMultiplier).some(v => v !== 1) ||
         Object.keys(p).some(k => k.startsWith('_civ') && k !== '_civApplied');
     assert(touched, `civ ${expectedNames[civId]} did not actually apply any bonus`);
+}
+
+// Saracens get a real gold-gather speedup via interactionMultiplier.
+{
+    const p = makePlayer(4);
+    applyCivilizationBonuses(p);
+    assert(Math.abs(p.interactionMultiplier.GoldMineInteraction - 0.8) < 1e-9,
+           `Saracen GoldMineInteraction multiplier expected 0.8, got ${p.interactionMultiplier.GoldMineInteraction}`);
+}
+
+// Mongols hunt ~40% faster.
+{
+    const p = makePlayer(7);
+    applyCivilizationBonuses(p);
+    assert(Math.abs(p.interactionMultiplier.HunterInteraction - 0.6) < 1e-9,
+           `Mongol HunterInteraction multiplier expected 0.6, got ${p.interactionMultiplier.HunterInteraction}`);
 }
 
 // Goths get +10 max population — explicit check.

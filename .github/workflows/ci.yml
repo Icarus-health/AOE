@@ -44,6 +44,12 @@ jobs:
       - name: Farm auto-reseed test
         run: node tests/farm_auto_reseed.test.js
 
+      - name: Garrison heal test
+        run: node tests/garrison_heal.test.js
+
+      - name: Interaction rate test
+        run: node tests/interaction_rate.test.js
+
   determinism:
     runs-on: ubuntu-latest
     needs: build
@@ -55,3 +61,5 @@ jobs:
       - run: node tests/determinism.test.js
       - run: node tests/civilizations.test.js
       - run: node tests/farm_auto_reseed.test.js
+      - run: node tests/garrison_heal.test.js
+      - run: node tests/interaction_rate.test.js

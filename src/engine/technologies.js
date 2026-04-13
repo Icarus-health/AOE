@@ -1084,6 +1084,112 @@ HandCart.prototype.COST = {
 }
 
 
+// ----------------------------------------------------------------------
+// Eco techs — AoE2 gather speed upgrades for the Storage Pit.
+//
+// Each tech multiplies the effective interaction rate so the benefits
+// actually land (unlike the old flat-integer bonuses which only tuned
+// the tech tree, not the civs). Rates are opinionated:
+//   Double-Bit Axe    -20% wood chop time         (Tool Age)
+//   Bow Saw           -20% more wood chop time    (Bronze, stacks)
+//   Gold Shaft Mining -20% gold mine time         (Bronze Age)
+//   Stone Shaft Mining -20% stone mine time       (Bronze Age)
+// ----------------------------------------------------------------------
+
+class DoubleBitAxe extends Technology {
+    static isVisible(entity) {
+        return entity.player.possessions.ToolAge && !entity.player.possessions.DoubleBitAxe;
+    }
+    finalize() {
+        this.player.interactionMultiplier.ChopInteraction *= 0.8;
+        this.player.interactionMultiplier.LumberInteraction =
+            (this.player.interactionMultiplier.LumberInteraction || 1) * 0.8;
+        super.finalize();
+        return true;
+    }
+}
+DoubleBitAxe.prototype.IMAGE = Sprites.Sprite("img/interface/technologies/double_bit_axe.png");
+DoubleBitAxe.prototype.TOOLTIP = "Research Double-Bit Axe: Villagers chop wood 20% faster.";
+DoubleBitAxe.prototype.TIME = 60 * FPS;
+DoubleBitAxe.prototype.POS = {
+    x: (Action.prototype.SIZE + Action.prototype.MARGIN * 2) * 4 + Action.prototype.MARGIN,
+    y: Action.prototype.MARGIN
+}
+DoubleBitAxe.prototype.COST = {
+    food: 100, wood: 50, stone: 0, gold: 0
+}
+
+
+class BowSaw extends Technology {
+    static isVisible(entity) {
+        return entity.player.possessions.BronzeAge &&
+               entity.player.possessions.DoubleBitAxe &&
+               !entity.player.possessions.BowSaw;
+    }
+    finalize() {
+        this.player.interactionMultiplier.ChopInteraction *= 0.8;
+        this.player.interactionMultiplier.LumberInteraction =
+            (this.player.interactionMultiplier.LumberInteraction || 1) * 0.8;
+        super.finalize();
+        return true;
+    }
+}
+BowSaw.prototype.IMAGE = Sprites.Sprite("img/interface/technologies/bow_saw.png");
+BowSaw.prototype.TOOLTIP = "Research Bow Saw: Villagers chop wood 20% faster again (stacks with Double-Bit Axe).";
+BowSaw.prototype.TIME = 70 * FPS;
+BowSaw.prototype.POS = {
+    x: (Action.prototype.SIZE + Action.prototype.MARGIN * 2) * 4 + Action.prototype.MARGIN,
+    y: Action.prototype.SIZE + Action.prototype.MARGIN * 2
+}
+BowSaw.prototype.COST = {
+    food: 150, wood: 100, stone: 0, gold: 0
+}
+
+
+class GoldShaftMining extends Technology {
+    static isVisible(entity) {
+        return entity.player.possessions.BronzeAge && !entity.player.possessions.GoldShaftMining;
+    }
+    finalize() {
+        this.player.interactionMultiplier.GoldMineInteraction *= 0.8;
+        super.finalize();
+        return true;
+    }
+}
+GoldShaftMining.prototype.IMAGE = Sprites.Sprite("img/interface/technologies/gold_shaft_mining.png");
+GoldShaftMining.prototype.TOOLTIP = "Research Gold Shaft Mining: Villagers mine gold 20% faster.";
+GoldShaftMining.prototype.TIME = 60 * FPS;
+GoldShaftMining.prototype.POS = {
+    x: (Action.prototype.SIZE + Action.prototype.MARGIN * 2) * 5 + Action.prototype.MARGIN,
+    y: Action.prototype.MARGIN
+}
+GoldShaftMining.prototype.COST = {
+    food: 200, wood: 0, stone: 0, gold: 0
+}
+
+
+class StoneShaftMining extends Technology {
+    static isVisible(entity) {
+        return entity.player.possessions.BronzeAge && !entity.player.possessions.StoneShaftMining;
+    }
+    finalize() {
+        this.player.interactionMultiplier.StoneMineInteraction *= 0.8;
+        super.finalize();
+        return true;
+    }
+}
+StoneShaftMining.prototype.IMAGE = Sprites.Sprite("img/interface/technologies/stone_shaft_mining.png");
+StoneShaftMining.prototype.TOOLTIP = "Research Stone Shaft Mining: Villagers mine stone 20% faster.";
+StoneShaftMining.prototype.TIME = 60 * FPS;
+StoneShaftMining.prototype.POS = {
+    x: (Action.prototype.SIZE + Action.prototype.MARGIN * 2) * 5 + Action.prototype.MARGIN,
+    y: Action.prototype.SIZE + Action.prototype.MARGIN * 2
+}
+StoneShaftMining.prototype.COST = {
+    food: 200, wood: 0, stone: 0, gold: 0
+}
+
+
 const Technologies = {
     Technology,
 
@@ -1131,6 +1237,11 @@ const Technologies = {
     Wheelbarrow,
     HandCart,
 
+    DoubleBitAxe,
+    BowSaw,
+    GoldShaftMining,
+    StoneShaftMining,
+
     TechByAge: [
         [
             ToolAge,
@@ -1150,6 +1261,7 @@ const Technologies = {
             WatchTower,
             BronzeAge,
             Wheelbarrow,
+            DoubleBitAxe,
         ],
         [
             Artisanship,
@@ -1177,6 +1289,9 @@ const Technologies = {
             Polytheism,
             IronAge,
             HandCart,
+            BowSaw,
+            GoldShaftMining,
+            StoneShaftMining,
         ],
         []
     ]

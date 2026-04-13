@@ -23,6 +23,14 @@ class StoragePit extends Building {
             Technologies.ScaleArmorArcher,
             Technologies.ScaleArmorCavalry,
             Technologies.BronzeShield,
+
+            // Phase 2 AoE2 eco upgrades. Each tech's static isVisible()
+            // gates the button on prereqs so they stay hidden until the
+            // right age.
+            Technologies.DoubleBitAxe,
+            Technologies.BowSaw,
+            Technologies.GoldShaftMining,
+            Technologies.StoneShaftMining,
         ]; else return null;
     }
 }
