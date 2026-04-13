@@ -109,20 +109,31 @@ export class ReplayTransport extends BaseShim {
 
 /**
  * Persist a snapshot under a friendly name. Uses IndexedDB if available,
- * falls back to localStorage for tiny replays.
+ * falls back to localStorage for tiny replays. When the optional cloud
+ * backup layer is enabled (VITE_SUPABASE_* env vars at build time), the
+ * same snapshot is additionally mirrored to Supabase Storage in the
+ * background — failures are non-fatal so offline saves still work.
  */
 export async function saveReplay(name, snapshot) {
     const json = JSON.stringify(snapshot);
+    let localOk = false;
     try {
         const db = await openDb();
         await dbPut(db, 'replays', { name, snapshot, savedAt: Date.now() });
-        return true;
+        localOk = true;
     } catch (err) {
         try {
             localStorage.setItem('aoe-replay-' + name, json);
-            return true;
-        } catch { return false; }
+            localOk = true;
+        } catch { localOk = false; }
     }
+    // Fire-and-forget cloud backup. Dynamic import keeps the cloud
+    // module out of the initial bundle for users without Supabase env.
+    try {
+        const { backupReplayToCloud } = await import('../../cloud/replay_backup.js');
+        backupReplayToCloud(name, snapshot).catch(() => {});
+    } catch (_) { /* cloud module missing — ignore */ }
+    return localOk;
 }
 
 export async function loadReplay(name) {
@@ -135,6 +146,13 @@ export async function loadReplay(name) {
         const raw = localStorage.getItem('aoe-replay-' + name);
         if (raw) return JSON.parse(raw);
     } catch { /* ignore */ }
+    // Last-ditch: try fetching from the cloud. Useful when the user
+    // wipes their browser storage or opens the PWA on a new device.
+    try {
+        const { fetchReplayFromCloud } = await import('../../cloud/replay_backup.js');
+        const snapshot = await fetchReplayFromCloud(name);
+        if (snapshot) return snapshot;
+    } catch (_) { /* cloud module missing — ignore */ }
     return null;
 }
 

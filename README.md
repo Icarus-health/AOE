@@ -180,6 +180,21 @@ volume) are persisted to `localStorage` under `aoe-audio-settings`.
 Drop royalty-free sounds into `public/audio/{ui,units,actions,buildings,music}/`
 to enable them. Sources: OpenGameArt.org, Freesound.org, or AI generation.
 
+## Deployment
+
+The game is a pure static PWA and deploys anywhere that can serve a
+`dist/` folder. See [`docs/DEPLOY.md`](docs/DEPLOY.md) for the full
+walkthrough of the recommended stack:
+
+1. **Vercel** — one-click deploy from the GitHub repo. `vercel.json`
+   sets framework detection, SPA rewrites and immutable asset caching.
+2. **Supabase (optional)** — cloud backup for match replays. When
+   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set at build
+   time, `saveReplay()` transparently mirrors to a public Storage
+   bucket; `loadReplay()` falls back to the cloud if the local copy
+   is missing. The feature is completely no-op without the env vars,
+   so offline-only installs are unaffected.
+
 ## Offline / PWA
 
 `vite-plugin-pwa` is configured with workbox runtime caching for images,
